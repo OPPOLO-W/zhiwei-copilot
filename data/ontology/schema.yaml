@@ -1,0 +1,691 @@
+# =============================================================================
+# 智维 Copilot 领域本体（TBox）
+# -----------------------------------------------------------------------------
+# 这是全系统的唯一来源（single source of truth）：
+#   - 校验器：类型白名单、domain/range、唯一键、自环、孤立点
+#   - 加载器：Neo4j 标签/关系类型/索引
+#   - 抽取：自动生成 Prompt 中的类型清单与 JSON Schema 约束
+#   - 前端：节点颜色/形状
+#   - 文档：docs/ontology.md 由本文件生成
+#
+# 表示约定
+#   * TBox 在本文件；ABox 在 Neo4j 属性图。
+#   * 类 → 节点标签（多标签，统一带 :Entity）；对象属性 → 关系类型；数据属性 → 节点属性。
+#   * 推理语义：RDFS/OWL-lite + 声明式规则 + 闭世界假设（negation as failure）。
+#
+# 命名规范
+#   类 PascalCase；关系 UPPER_SNAKE_CASE；属性 camelCase；实体 ID = 前缀 + ":" + 业务键
+# =============================================================================
+
+version: "0.1.0"
+namespace: "https://example.org/kg/ecovacs#"
+productLineScope: DEEBOT_T          # 导入时强制过滤，防止范围蔓延
+
+# -----------------------------------------------------------------------------
+# 类（20 个核心类 + Case 的 3 个子类）
+#   prefix   : 实体 ID 前缀
+#   key      : 业务唯一键（属性名）
+#   idFormat : 复杂键的拼装规则说明，仅作文档用途
+#   props    : 数据属性（name/type/required/desc）
+#   viz      : 前端视觉编码（浅色主题）
+# -----------------------------------------------------------------------------
+classes:
+  ProductLine:
+    label: 产品线
+    prefix: LINE
+    key: code
+    definition: 共享结构平台与售后体系的一组产品。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 展示名}
+      code: {type: string, required: true, desc: 产品线代码}
+      series: {type: string, required: false, desc: 系列代号，如 X / T（由型号名首字母推断）}
+      category: {type: string, required: false, desc: 所属品类，如 地宝 DEEBOT}
+    viz: {color: "#2563eb", shape: round-rectangle}
+    example: {id: "LINE:DEEBOT-T", name: "DEEBOT T 系列", code: "DEEBOT_T"}
+
+  ProductModel:
+    label: 产品型号
+    prefix: MODEL
+    key: modelCode
+    definition: 对外销售的具体型号，是错误码、部件、耗材的归属维度。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 展示名}
+      modelCode: {type: string, required: true, desc: 型号代码，如 T30 PRO}
+      variant: {type: string, required: false, desc: 变体（上下水款等），不单独建型号}
+      launchYear: {type: integer, required: false, desc: 上市年份}
+      series: {type: string, required: false, desc: 系列代号，取自型号首字母（T20 PRO → T）}
+      deviceCodes: {type: string, required: false, desc: 认证型号/铭牌型号，如 DDX19 / DDX29}
+    viz: {color: "#1d4ed8", shape: round-rectangle}
+    example: {id: "MODEL:T30-PRO", name: "T30 PRO", modelCode: "T30 PRO"}
+
+  Product:
+    label: 设备实例
+    prefix: PROD
+    key: serialNo
+    definition: 具有序列号的单台设备。
+    required: true
+    props:
+      serialNo: {type: string, required: true, desc: 序列号（已脱敏）}
+      purchaseDate: {type: date, required: false, desc: 购买日期 ISO 8601}
+      warrantyStatus: {type: string, required: false, desc: in_warranty | out_of_warranty | unknown}
+      warrantyEndDate: {type: date, required: false, desc: 保修截止日}
+    viz: {color: "#3b82f6", shape: round-rectangle}
+    example: {id: "PROD:T30-2025-0017", serialNo: "T30-2025-0017"}
+
+  Component:
+    label: 可维修部件
+    prefix: COMP
+    key: code
+    definition: 设备上可检查、可清洁、可更换的功能部件（非耗材）。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      code: {type: string, required: true, desc: 部件代码}
+      partNo: {type: string, required: false, desc: 备件号}
+      category: {type: string, required: false, desc: drive|cleaning|navigation|station|water|power|control}
+      maintainable: {type: boolean, required: false, desc: 是否用户可维护}
+    viz: {color: "#0891b2", shape: round-rectangle}
+    example: {id: "COMP:LEFT-DRIVE-WHEEL", name: "左驱动轮组", code: "LEFT-DRIVE-WHEEL"}
+
+  Consumable:
+    label: 耗材
+    prefix: CON
+    key: sku
+    definition: 有更换周期的易耗件（边刷、滤网、尘袋、拖布等），区别于备件。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      sku: {type: string, required: true, desc: SKU}
+      replaceCycleDays: {type: integer, required: false, desc: 建议更换周期（天）}
+    viz: {color: "#14b8a6", shape: round-rectangle}
+    example: {id: "CON:SIDE-BRUSH", name: "边刷", sku: "CON-SB-T"}
+
+  SparePart:
+    label: 备件
+    prefix: SP
+    key: sku
+    definition: 故障后更换的硬件模块（轮组、电池、水泵、主板等），通常需售后或较高动手能力。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      sku: {type: string, required: true, desc: SKU}
+      category: {type: string, required: false, desc: 备件分类}
+      userReplaceable: {type: boolean, required: false, desc: 是否允许用户自行更换}
+    viz: {color: "#0d9488", shape: round-rectangle}
+    example: {id: "SP:LEFT-WHEEL-ASSY", name: "左轮组总成", sku: "SP-LW-T30"}
+
+  ErrorCode:
+    label: 错误码
+    prefix: ERR
+    idFormat: "ERR:<modelCode>:<code>"
+    key: code
+    definition: 设备或 APP 抛出的编码化报错。**必须绑定型号**，因为同一 code 在不同型号下含义可能不同。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 展示名，如 T30 PRO / E11}
+      code: {type: string, required: true, desc: 错误码字面值}
+      modelCode: {type: string, required: true, desc: 所属型号}
+      meaning: {type: string, required: true, desc: 官方含义}
+      severity: {type: string, required: false, desc: low|medium|high|critical}
+      family: {type: string, required: false, desc: drive|brush|fan|battery|sensor|station|network|app|firmware|map}
+    viz: {color: "#7c3aed", shape: round-rectangle}
+    example: {id: "ERR:T30-PRO:E11", code: "E11", modelCode: "T30 PRO", meaning: "左驱动轮异常"}
+
+  FaultCategory:
+    label: 故障大类
+    prefix: CAT
+    key: code
+    definition: 用于区分硬件、耗材、网络、用户操作等处置路径的大类。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      code: {type: string, required: true, desc: hardware|consumable|network|operation|safety}
+      selfServiceable: {type: boolean, required: false, desc: 是否可由用户自行处理}
+    viz: {color: "#6366f1", shape: round-rectangle}
+    example: {id: "CAT:HARDWARE", name: "硬件故障", code: "hardware"}
+
+  Symptom:
+    label: 症状 / 现象
+    prefix: SYM
+    key: code
+    definition: 用户可观察到的现象，是自然语言到图谱的入口。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      code: {type: string, required: true, desc: 症状代码}
+      severity: {type: string, required: false, desc: low|medium|high|critical}
+      description: {type: string, required: false, desc: 现象描述}
+      aliases: {type: "string[]", required: false, desc: 用户口语别名，用于实体链接}
+    viz: {color: "#f59e0b", shape: round-rectangle}
+    example: {id: "SYM:LEFT-WHEEL-STUCK", name: "左轮不转", code: "LEFT-WHEEL-STUCK", aliases: ["左轮卡住", "左边轮子不动"]}
+
+  Fault:
+    label: 故障模式
+    prefix: FAULT
+    key: code
+    definition: 可诊断的技术故障模式，比症状更接近工程语义。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      code: {type: string, required: true, desc: 故障代码}
+      severity: {type: string, required: false, desc: low|medium|high|critical}
+    viz: {color: "#ea580c", shape: round-rectangle}
+    example: {id: "FAULT:LEFT-WHEEL-STUCK", name: "左驱动轮卡滞", code: "LEFT-WHEEL-STUCK"}
+
+  Cause:
+    label: 根因
+    prefix: CAUSE
+    key: code
+    definition: 导致故障的具体原因，分为硬件、耗材、环境、操作、软件五类。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      code: {type: string, required: true, desc: 根因代码}
+      category: {type: string, required: false, desc: hardware|consumable|environment|operation|software}
+      userFixable: {type: boolean, required: false, desc: 是否可用户自行解决}
+    viz: {color: "#dc2626", shape: round-rectangle}
+    example: {id: "CAUSE:HAIR-WRAP", name: "毛发/线材缠绕", code: "HAIR-WRAP", category: environment}
+
+  Check:
+    label: 检查项
+    prefix: CHK
+    key: code
+    definition: 用于确认或排除根因的可执行检查，是"先清理还是先换件"的鉴别手段。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 检查名}
+      code: {type: string, required: true, desc: 检查代码}
+      method: {type: string, required: false, desc: 操作方法}
+      riskLevel: {type: string, required: false, desc: low|medium|high}
+      durationMin: {type: integer, required: false, desc: 预计耗时（分钟）}
+      requiresTools: {type: "string[]", required: false, desc: 需要的工具}
+    viz: {color: "#0ea5e9", shape: round-rectangle}
+    example: {id: "CHK:SPIN-LEFT-WHEEL", name: "手动转动左轮", code: "SPIN-LEFT-WHEEL", riskLevel: low, durationMin: 2}
+
+  Solution:
+    label: 处置方案
+    prefix: SOL
+    key: code
+    definition: 针对根因或故障的处置动作，含风险等级与是否需备件。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 方案名}
+      code: {type: string, required: true, desc: 方案代码}
+      type: {type: string, required: false, desc: clean|reset|reconfigure|replace|repair|escalate}
+      riskLevel: {type: string, required: false, desc: low|medium|high}
+      selfServiceable: {type: boolean, required: false, desc: 是否可用户自行执行}
+      estimatedMin: {type: integer, required: false, desc: 预计耗时}
+    viz: {color: "#16a34a", shape: round-rectangle}
+    example: {id: "SOL:CLEAN-WHEEL", name: "清理轮组缠绕物", code: "CLEAN-WHEEL", type: clean, riskLevel: low}
+
+  Document:
+    label: 文档
+    prefix: DOC
+    key: docId
+    definition: 证据来源文档（手册、FAQ、维护指南）。
+    required: true
+    props:
+      docId: {type: string, required: true, desc: 文档 ID}
+      title: {type: string, required: true, desc: 标题}
+      docType: {type: string, required: false, desc: user_manual|faq|maintenance|safety}
+      version: {type: string, required: false, desc: 版本}
+      updatedAt: {type: date, required: false, desc: 更新日期}
+      url: {type: string, required: false, desc: 官方链接}
+      authority: {type: integer, required: false, desc: 权威度 1-5，用于证据排序}
+    viz: {color: "#64748b", shape: rectangle}
+    example: {id: "DOC:T30-MANUAL", docId: "DOC-T30-MANUAL", title: "T30 PRO 用户手册"}
+
+  FirmwareVersion:
+    label: 固件版本
+    prefix: FW
+    key: version
+    definition: 设备固件版本，用于关联已知问题。
+    required: true
+    props:
+      version: {type: string, required: true, desc: 版本号}
+      releaseDate: {type: date, required: false, desc: 发布日期}
+    viz: {color: "#9333ea", shape: round-rectangle}
+    example: {id: "FW:T30-1.2.0", version: "1.2.0"}
+
+  AppVersion:
+    label: APP 版本
+    prefix: APP
+    key: version
+    definition: 客户端版本，配网/绑定类问题常与之相关。
+    required: true
+    props:
+      version: {type: string, required: true, desc: 版本号}
+      platform: {type: string, required: false, desc: ios|android}
+    viz: {color: "#a855f7", shape: round-rectangle}
+    example: {id: "APP:4.5.2-ANDROID", version: "4.5.2", platform: android}
+
+  Customer:
+    label: 匿名客户
+    prefix: CUST
+    key: customerId
+    definition: 脱敏家庭档案，只保留环境特征，不含姓名/地址/电话。
+    required: true
+    props:
+      customerId: {type: string, required: true, desc: 客户 ID}
+      homeType: {type: string, required: false, desc: apartment|duplex|house}
+      pets: {type: boolean, required: false, desc: 是否养宠}
+      city: {type: string, required: false, desc: 城市（仅到市级）}
+    viz: {color: "#db2777", shape: round-rectangle}
+    example: {id: "CUST:001", customerId: "CUST-001", homeType: duplex, pets: true}
+
+  UsageEnvironment:
+    label: 使用环境
+    prefix: ENV
+    key: code
+    definition: 影响根因分布的使用条件（宠物、长发、地毯、复式、大户型）。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 中文名}
+      code: {type: string, required: true, desc: 环境代码}
+      description: {type: string, required: false, desc: 说明}
+    viz: {color: "#65a30d", shape: round-rectangle}
+    example: {id: "ENV:PET", name: "养宠家庭", code: "PET"}
+
+  ServiceAgent:
+    label: 服务人员 / 维修点
+    prefix: AGENT
+    key: code
+    definition: 官方售后或第三方维修资源。
+    required: true
+    props:
+      name: {type: string, required: true, desc: 名称}
+      code: {type: string, required: true, desc: 代码}
+      type: {type: string, required: false, desc: official|third_party}
+      city: {type: string, required: false, desc: 城市}
+      slaHours: {type: integer, required: false, desc: 承诺响应小时数}
+    viz: {color: "#475569", shape: round-rectangle}
+    example: {id: "AGENT:OFFICIAL-400", name: "官方售后 400 热线", code: "OFFICIAL-400", type: official}
+
+  # Case 为超类，实例使用多标签 :Entity:Case:FAQCase|PublicCase|Ticket
+  Case:
+    label: 案例（超类）
+    prefix: CASE
+    key: caseNo
+    definition: 案例超类，按来源分为 FAQCase / PublicCase / Ticket，来源不可混同。
+    required: true
+    abstract: true
+    props:
+      caseNo: {type: string, required: true, desc: 案例编号}
+      sourceType: {type: string, required: true, desc: official_faq|public_post|synthetic}
+      createdAt: {type: datetime, required: false, desc: 创建时间 ISO 8601}
+      title: {type: string, required: false, desc: 一句话摘要}
+      rawText: {type: string, required: false, desc: 脱敏后的现象描述}
+      resolution: {type: string, required: false, desc: 最终结果}
+      docId: {type: string, required: false, desc: 原文所在文档 ID（官方 FAQ 案例必填）}
+      url: {type: string, required: false, desc: 原文链接}
+      stepCount: {type: integer, required: false, desc: 原文处置步骤数}
+      kind: {type: string, required: false, desc: troubleshoot|maintenance|usage；审核分类，仅 accepted 进图}
+    viz: {color: "#94a3b8", shape: rectangle}
+
+  FAQCase:
+    label: 官方 FAQ 案例
+    prefix: CASE
+    key: caseNo
+    parent: Case
+    definition: 以官方 FAQ 的「问题—步骤」形式组织的案例卡；是高质量种子，但不是真实工单。来源真实性看 sourceType（official_faq / faq_template_proxy）。
+    required: true
+    props: {}
+    viz: {color: "#94a3b8", shape: rectangle}
+
+  PublicCase:
+    label: 公开案例
+    prefix: CASE
+    key: caseNo
+    parent: Case
+    definition: 公开投诉/维修帖的匿名化改写；只用于语言与症状，不作为因果金标准。
+    required: true
+    props:
+      sourceUrl: {type: string, required: false, desc: 来源（不含个人信息）}
+      anonymized: {type: boolean, required: false, desc: 是否已脱敏}
+    viz: {color: "#94a3b8", shape: rectangle}
+
+  Ticket:
+    label: 合成工单
+    prefix: TICKET
+    key: caseNo
+    parent: Case
+    definition: 基于 FAQCase/PublicCase 合成的工单，含时间、费用、结果字段；必须可追溯来源。
+    required: true
+    props:
+      channel: {type: string, required: false, desc: hotline|app|store}
+      cost: {type: number, required: false, desc: 费用（元）}
+      satisfaction: {type: integer, required: false, desc: 满意度 1-5}
+      resolved: {type: boolean, required: false, desc: 是否解决}
+    viz: {color: "#94a3b8", shape: rectangle}
+
+# -----------------------------------------------------------------------------
+# 关系（29 个对象属性）
+#   head/tail 为允许的类集合（domain/range 校验依据）
+#   minPerType: 质量门槛，少于该数量视为本体/数据覆盖不足
+#   所有关系必须带 source / confidence / evidence / evidenceMode
+# -----------------------------------------------------------------------------
+relations:
+  HAS_MODEL:
+    label: 包含型号
+    head: [ProductLine]
+    tail: [ProductModel]
+    card: "1..*"
+    desc: 产品线包含型号
+    minPerType: 3
+
+  HAS_COMPONENT:
+    label: 使用部件
+    head: [ProductModel]
+    tail: [Component]
+    card: "1..*"
+    desc: 型号包含某部件
+    minPerType: 10
+
+  USES_CONSUMABLE:
+    label: 使用耗材
+    head: [ProductModel]
+    tail: [Consumable]
+    card: "1..*"
+    desc: 型号使用某耗材
+    minPerType: 5
+
+  COMPATIBLE_WITH:
+    label: 兼容
+    head: [Consumable, SparePart]
+    tail: [ProductModel]
+    card: "*"
+    desc: 耗材/备件兼容型号
+    minPerType: 5
+
+  HAS_ERROR_CODE:
+    label: 对应错误码
+    head: [ProductModel]
+    tail: [ErrorCode]
+    card: "1..*"
+    desc: 型号对应错误码；关系上记录该型号下的含义
+    minPerType: 10
+
+  HAS_CODE:
+    label: 表现为错误码
+    head: [Symptom]
+    tail: [ErrorCode]
+    card: "*"
+    desc: 症状对应错误码
+    minPerType: 10
+
+  HAS_CATEGORY:
+    label: 属于大类
+    head: [ErrorCode]
+    tail: [FaultCategory]
+    card: "1"
+    desc: 错误码属于某故障大类
+    minPerType: 10
+
+  IN_CATEGORY:
+    label: 故障大类
+    head: [Fault]
+    tail: [FaultCategory]
+    card: "1"
+    desc: 故障模式归属大类（用于 R20/R09 的大类过滤）
+    minPerType: 4
+
+  INDICATES:
+    label: 指向故障
+    head: [Symptom]
+    tail: [Fault]
+    card: "*"
+    desc: 症状提示故障；置信度写在关系上
+    minPerType: 15
+
+  OCCURS_IN:
+    label: 发生于部件
+    head: [Fault]
+    tail: [Component]
+    card: "1..*"
+    desc: 故障发生在某部件
+    minPerType: 12
+
+  CAUSED_BY:
+    label: 根因为
+    head: [Fault]
+    tail: [Cause]
+    card: "*"
+    desc: 故障可能根因；置信度写在关系上
+    minPerType: 15
+
+  CONFIRMED_BY:
+    label: 由检查确认
+    head: [Cause]
+    tail: [Check]
+    card: "*"
+    desc: 根因由某检查确认
+    minPerType: 10
+
+  RESOLVED_BY:
+    label: 由方案解决
+    head: [Cause, Fault, Case]
+    tail: [Solution]
+    card: "*"
+    desc: 根因/故障/案例对应处置方案
+    minPerType: 15
+
+  REQUIRES_CONSUMABLE:
+    label: 需要耗材
+    head: [Solution]
+    tail: [Consumable]
+    card: "*"
+    desc: 方案需要耗材
+    minPerType: 5
+
+  REQUIRES_PART:
+    label: 需要备件
+    head: [Solution]
+    tail: [SparePart]
+    card: "*"
+    desc: 方案需要备件
+    minPerType: 5
+
+  DOCUMENTED_IN:
+    label: 记载于
+    head: [Solution, Fault, Cause, ErrorCode, Symptom, Case]
+    tail: [Document]
+    card: "*"
+    desc: 方案/故障/根因/症状/案例所依据的官方文档
+    minPerType: 10
+
+  OBSERVED:
+    label: 观察到
+    head: [Case]
+    tail: [Symptom]
+    card: "1..*"
+    desc: 案例观察到症状
+    minPerType: 20
+
+  ABOUT:
+    label: 针对
+    head: [Case, Document]
+    tail: [Product, ProductModel]
+    card: "1"
+    desc: 案例或文档针对设备或型号
+    minPerType: 20
+
+  REPORTED_BY:
+    label: 报告人
+    head: [Case]
+    tail: [Customer]
+    card: "0..1"
+    desc: 案例由客户报告
+    minPerType: 10
+
+  OWNS:
+    label: 拥有
+    head: [Customer]
+    tail: [Product]
+    card: "*"
+    desc: 客户拥有设备
+    minPerType: 6
+
+  USED_IN:
+    label: 使用于
+    head: [Product]
+    tail: [UsageEnvironment]
+    card: "*"
+    desc: 设备使用环境
+    minPerType: 6
+
+  RUNS_FIRMWARE:
+    label: 运行固件
+    head: [Product]
+    tail: [FirmwareVersion]
+    card: "0..1"
+    desc: 设备运行固件
+    minPerType: 6
+
+  RUNS_APP:
+    label: 使用 APP
+    head: [Customer]
+    tail: [AppVersion]
+    card: "*"
+    desc: 用户使用 APP 版本
+    minPerType: 3
+
+  ASSIGNED_TO:
+    label: 指派给
+    head: [Case]
+    tail: [ServiceAgent]
+    card: "0..1"
+    desc: 案例指派服务人员
+    minPerType: 3
+
+  DERIVED_FROM:
+    label: 来源于
+    head: [Ticket]
+    tail: [FAQCase, PublicCase]
+    card: "1..*"
+    desc: 合成工单的来源案例（可追溯性要求）
+    minPerType: 10
+
+  SIMILAR_TO:
+    label: 相似于
+    head: [Case]
+    tail: [Case]
+    card: "*"
+    desc: 相似案例；对称关系，需去重
+    symmetric: true
+    minPerType: 5
+
+  DUPLICATE_OF:
+    label: 重复于
+    head: [Case]
+    tail: [Case]
+    card: "0..1"
+    desc: 重复案例
+    minPerType: 0
+
+  DETECTS:
+    label: 可检测
+    head: [Check]
+    tail: [Fault]
+    card: "*"
+    desc: 检查可发现某故障
+    minPerType: 10
+
+  PRECEDES:
+    label: 先于
+    head: [Solution]
+    tail: [Solution]
+    card: "*"
+    desc: 处置步骤先后顺序
+    minPerType: 3
+
+  INSTANCE_OF:
+    label: 实例属于型号
+    head: [Product]
+    tail: [ProductModel]
+    card: "1"
+    desc: 设备实例所属型号（文档 4.6 使用但 4.4 表遗漏，此处补全）
+    minPerType: 6
+
+  HAS_MANUAL:
+    label: 官方手册
+    head: [ProductModel]
+    tail: [Document]
+    card: "1..*"
+    desc: 型号对应的官方手册/FAQ 文档（补充：保证文档节点可达）
+    minPerType: 3
+
+  HAS_FIRMWARE:
+    label: 提供固件
+    head: [ProductModel]
+    tail: [FirmwareVersion]
+    card: "1..*"
+    desc: 型号可运行的固件版本（补充：文档缺少型号到固件的直连，R10 需要）
+    minPerType: 3
+
+  KNOWN_ISSUE:
+    label: 已知问题
+    head: [FirmwareVersion]
+    tail: [Fault]
+    card: "*"
+    desc: 固件版本的已知缺陷（R10 使用）
+    minPerType: 1
+
+# -----------------------------------------------------------------------------
+# 全局质量门槛（对应文档 1.4 成功标准；课程最低 60/120）
+# -----------------------------------------------------------------------------
+qualityGates:
+  minEntities: 150
+  minRelations: 300
+  minEntitiesCourse: 60
+  minRelationsCourse: 120
+  maxSchemaViolations: 0
+  minEvidenceCoverage: 1.0
+
+# -----------------------------------------------------------------------------
+# 能力问题（CQ）：本体是否「够用」的验收口径
+#   query 指向实际能回答它的入口（API 路由 / 查询函数 / 评测题号），
+#   docs/ontology.md 由本段生成 CQ 表，避免文档与实现对不上。
+# -----------------------------------------------------------------------------
+competencyQuestions:
+  - id: CQ1
+    question: T20 PRO 报 E11，最可能是什么部件/根因？
+    path: ErrorCode → Symptom → Fault → Component → Cause
+    query: POST /api/query（mode=rule）
+  - id: CQ2
+    question: 先清理还是直接换轮组？
+    path: Cause → Check → Solution
+    query: 证明树中 CONFIRMED_BY / RESOLVED_BY 两条分支
+  - id: CQ3
+    question: 养宠家庭反复报 E13，换边刷能解决吗？
+    path: UsageEnvironment → Symptom → Cause → Consumable
+    query: 规则 R09（耗材优先清理）+ 环境事实 home_environment
+  - id: CQ4
+    question: 10010 是硬件故障还是网络问题？
+    path: ErrorCode → FaultCategory → Cause → Solution
+    query: 规则 R20（network_first）+ Agent verify 交叉核对
+  - id: CQ5
+    question: 基站不上水，查水箱、水泵还是管路？
+    path: Component → Fault → Check
+    query: 规则 R21（water_check_order）
+  - id: CQ6
+    question: E41 电池异常，什么时候建议换电池？
+    path: ErrorCode → Fault → Cause → Solution → SparePart
+    query: 规则 R14（safety_stop）+ R08（兼容性否决）
+  - id: CQ7
+    question: 同一错误码在不同型号上含义一样吗？
+    path: ErrorCode → ProductModel
+    query: GET /api/graph/code/{code}；当前语料仅含单型号，返回覆盖清单
+  - id: CQ8
+    question: 哪些耗材与 T20 PRO 兼容？
+    path: Consumable → COMPATIBLE_WITH → ProductModel
+    query: Agent 工具 check_compatibility
+  - id: CQ9
+    question: 同一设备 30 天重复报修，应该升级还是换机？
+    path: Ticket → Symptom → 重复计数 → Escalation
+    query: 规则 R12（chronic_issue）+ 事实层重复计数聚合
+  - id: CQ10
+    question: 这个建议对应哪份官方文档/FAQ？
+    path: Solution → Document → Evidence
+    query: 证据面板 E* → docId → 原文定位

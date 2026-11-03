@@ -1,0 +1,121 @@
+# =============================================================================
+# 01 硬件与服务资源（T20 PRO 单机型 ABox 种子）
+# -----------------------------------------------------------------------------
+# 与 data/seed/ 旧种子的区别：
+#   * 只保留 T20 PRO，T10 TURBO / T30 PRO 及其专属错误码、固件已删除。
+#   * models[].manualDoc 显式声明手册的**真实 doc_id**（DOC:T20PRO-MANUAL，
+#     取自 data/raw/docs.jsonl），不再由机型短码拼接，避免悬空引用。
+#   * 证据等级由本文件顶部 sources / evidence 两段声明，代码里不再硬编码文档 ID。
+#
+# 证据等级口径：
+#   verbatim    语料原文逐字引用，可回指页码
+#   paraphrase  对语料内容的改写摘要（尚未逐字核对）
+#   assumed     语料中并无对应原文，属工程先验或厂商公开提示码惯例
+# =============================================================================
+
+sources:
+  default: DOC:T20PRO-MANUAL
+  productLine: DOC:T20PRO-MANUAL
+  component: DOC:T20PRO-MANUAL
+  consumable: DOC:T20PRO-MANUAL
+  sparePart: SYN:ASSUMED-PARTS
+  firmware: DOC:T20PRO-MANUAL
+  # 错误码：手册故障表只给中文故障名，不含 E11/10010 这类编码，
+  # 故本层无文档可指，统一挂在假设来源上，不建 DOCUMENTED_IN 边。
+  codes: SYN:ASSUMED-CODES
+  symptom: DOC:T20PRO-MANUAL
+  fault: DOC:T20PRO-MANUAL
+  cause: SYN:ASSUMED-CAUSES
+  check: DOC:T20PRO-MANUAL
+  solution: DOC:T20PRO-MANUAL
+  precedence: SYN:ASSUMED-CAUSES
+
+evidence:
+  productLine: paraphrase
+  component: paraphrase
+  consumable: paraphrase
+  sparePart: assumed
+  firmware: assumed
+  codes: assumed
+  symptom: paraphrase
+  fault: paraphrase
+  cause: assumed
+  check: paraphrase
+  solution: paraphrase
+  precedence: assumed
+
+productLine:
+  id: LINE:DEEBOT-T
+  name: DEEBOT T 系列
+  code: DEEBOT_T
+  description: 科沃斯 DEEBOT T 系列扫拖一体机器人（本期语料覆盖 T20 PRO）
+  evidence: 本期语料为《地宝 DEEBOT T20 PRO》用户手册与官网常见问题
+  sourceId: DOC:T20PRO-MANUAL
+
+models:
+  - id: MODEL:T20-PRO
+    name: T20 PRO
+    modelCode: T20 PRO
+    launchYear: 2023
+    variant: 标准基站款
+    manualDoc: DOC:T20PRO-MANUAL
+    evidence: 地宝 DEEBOT T20 PRO 用户手册（32 页，含产品组成 / 产品使用 / 部件保养 / 常见问题排查 / 产品参数）
+    sourceId: DOC:T20PRO-MANUAL
+    firmware: [FW:T20-2.1.0]
+    components: all
+    consumables: all
+    codes: [E11, E12, E13, E14, E15, E21, E22, E23, E25, E26, E27, E31, E32, E33, E34, E41, E42, E43, "10010", "10011", "10012", "10020", "10030"]
+    missingCodes: [E35]
+
+components:
+  - {code: LEFT-DRIVE-WHEEL, name: 左驱动轮组, category: drive, maintainable: true, partNo: "SP-LW-T20", note: 机身底部左侧驱动轮，负责行进与越障}
+  - {code: RIGHT-DRIVE-WHEEL, name: 右驱动轮组, category: drive, maintainable: true, partNo: "SP-RW-T20", note: 机身底部右侧驱动轮，与左轮差速转向}
+  - {code: UNIVERSAL-WHEEL, name: 万向轮, category: drive, maintainable: true, partNo: "SP-UW-T20", note: 机身前端万向轮，负责支撑与转向}
+  - {code: MAIN-BRUSH, name: 浮动滚刷, category: cleaning, maintainable: true, partNo: "SP-MB-T20", note: 浮动滚刷贴合地面卷起灰尘与毛发}
+  - {code: SIDE-BRUSH, name: 双边刷, category: cleaning, maintainable: true, partNo: "SP-SB-T20", note: 双边刷贴合墙边与角落清扫}
+  - {code: DUST-BIN, name: 尘盒, category: cleaning, maintainable: true, partNo: "SP-DB-T20", note: 尘盒收集清扫垃圾并进入集尘通道}
+  - {code: FILTER, name: 净味抗菌滤芯, category: cleaning, maintainable: true, partNo: "SP-FT-T20", note: 滤芯位于尘盒后侧，拦截细颗粒防止二次污染}
+  - {code: FAN, name: 风机, category: cleaning, maintainable: false, partNo: "SP-FAN-T20", note: 风机提供吸力，堵塞会导致吸力下降}
+  - {code: BATTERY, name: 电池组, category: power, maintainable: false, partNo: "SP-BAT-T20", note: 电池组位于机身底部，为整机供电}
+  - {code: LDS, name: TrueMapping 激光扫描模块, category: navigation, maintainable: true, partNo: "SP-LDS-T20", note: 顶部激光扫描模块负责建图与定位，测量范围 10m}
+  - {code: TRUE-DETECT, name: TrueDetect 3D 结构光传感器, category: navigation, maintainable: true, partNo: "SP-TD-T20", note: 线激光扫描配合单目摄像头识别障碍物空间大小，检测距离 0.35m}
+  - {code: CLIFF-SENSOR, name: 下视感应器, category: navigation, maintainable: true, partNo: "SP-CS-T20", note: 底部下视传感器用于识别台阶与落差}
+  - {code: BUMPER, name: 缓冲防撞板, category: navigation, maintainable: true, partNo: "SP-BP-T20", note: 前端缓冲防撞板触发碰撞感知与沿边避障}
+  - {code: MICROPHONE, name: 麦克风, category: control, maintainable: true, partNo: "SP-MIC-T20", note: 麦克风用于接收 OK YIKO 语音指令}
+  - {code: WATER-PUMP, name: 水泵, category: water, maintainable: false, partNo: "SP-WP-T20", note: 水泵负责将清水箱的水送至拖布或清洗基站}
+  - {code: WATER-TANK, name: 清水箱, category: water, maintainable: true, partNo: "SP-WT-T20", note: 清水箱为拖地提供清水}
+  - {code: SEWAGE-TANK, name: 污水箱, category: water, maintainable: true, partNo: "SP-ST-T20", note: 污水箱收集洗拖布产生的污水}
+  - {code: CLEANING-TRAY, name: 清洁槽, category: station, maintainable: true, partNo: "SP-CT-T20", note: 基站清洁槽用于清洗拖布，积液需定期清理}
+  - {code: MOP-PLATE, name: 拖布支架, category: water, maintainable: true, partNo: "SP-MP-T20", note: 拖布支架通过卡扣固定于机身底部，可自动升降}
+  - {code: BASE-STATION, name: 全能基站, category: station, maintainable: false, partNo: "SP-BS-T20", note: 全能基站负责充电、集尘与洗拖布}
+  - {code: DUST-COLLECT, name: 集尘仓内部, category: station, maintainable: true, partNo: "SP-DC-T20", note: 基站集尘仓内部将尘盒垃圾吸入尘袋，需定期擦拭}
+  - {code: CHARGE-CONTACT, name: 充电极片, category: station, maintainable: true, partNo: "SP-CC-T20", note: 主机与全能基站通过充电极片接触供电}
+  - {code: WIFI-MODULE, name: Wi-Fi 模块, category: control, maintainable: false, partNo: "SP-WF-T20", note: Wi-Fi 模块仅支持 2.4GHz 频段}
+  - {code: MAINBOARD, name: 主板, category: control, maintainable: false, partNo: "SP-MB2-T20", note: 主板负责整机控制与传感器汇聚}
+
+consumables:
+  - {code: SIDE-BRUSH, name: 边刷（耗材）, sku: CON-SB-T20, cycle: 90, compatible: all, note: 边刷刷毛磨损或变形后需成对更换}
+  - {code: MAIN-BRUSH, name: 滚刷（耗材）, sku: CON-MB-T20, cycle: 180, compatible: all, note: 滚刷胶条磨损后清扫效率下降}
+  - {code: FILTER, name: 净味抗菌滤芯（耗材）, sku: CON-FT-T20, cycle: 90, compatible: all, note: 滤芯建议每 3 个月更换一次}
+  - {code: DUST-BAG, name: 尘袋（耗材）, sku: CON-DG-T20, cycle: 60, compatible: all, note: 尘袋满后需整体更换，不可清洗复用}
+  - {code: MOP-PAD, name: 可水洗拖布, sku: CON-MP-T20, cycle: 60, compatible: all, note: 拖布可水洗，建议每 1-2 个月更换}
+  - {code: CLEANING-LIQUID, name: 清洁液, sku: CON-CL-T20, cycle: 45, compatible: all, note: 使用官方清洁液，避免使用含泡清洁剂}
+
+spareParts:
+  - {code: LEFT-WHEEL-ASSY, name: 左轮组总成, sku: SP-LW-T20, category: drive, userReplaceable: true, compatible: all, note: 轮组轴承磨损或电机故障时整体更换}
+  - {code: RIGHT-WHEEL-ASSY, name: 右轮组总成, sku: SP-RW-T20, category: drive, userReplaceable: true, compatible: all, note: 右轮组总成与左轮同规格}
+  - {code: BATTERY-PACK, name: 电池组备件, sku: SP-BAT-T20, category: power, userReplaceable: false, compatible: all, note: 电池更换需官方售后执行，禁止自行拆解}
+  - {code: WATER-PUMP-ASSY, name: 水泵总成, sku: SP-WP-T20, category: water, userReplaceable: false, compatible: all, note: 水泵损坏需售后更换}
+  - {code: FAN-ASSY, name: 风机总成, sku: SP-FAN-T20, category: cleaning, userReplaceable: false, compatible: all, note: 风机总成因异物损坏时更换}
+  - {code: LDS-ASSY, name: 激光扫描模块总成, sku: SP-LDS-T20, category: navigation, userReplaceable: false, compatible: all, note: 雷达电机或皮带故障需更换总成}
+  - {code: MAINBOARD-ASSY, name: 主板总成, sku: SP-MB-T20, category: control, userReplaceable: false, compatible: all, note: 主板故障需售后检测后更换}
+  - {code: BASE-STATION-BOARD, name: 基站控制板, sku: SP-BSB-T20, category: station, userReplaceable: false, compatible: all, note: 基站控制板故障影响充电与集尘}
+  - {code: CHARGE-CONTACT-SET, name: 充电极片组件, sku: SP-CC-T20, category: station, userReplaceable: true, compatible: all, note: 极片氧化严重时可更换}
+
+firmware:
+  - {id: "FW:T20-2.1.0", version: 2.1.0, releaseDate: "2024-03-08", model: MODEL:T20-PRO, note: 优化上下水模块的水泵控制}
+
+appVersions:
+  - {id: "APP:4.3.0-ANDROID", version: 4.3.0, platform: android, note: 旧版本在 Android 14 上存在绑定失败问题}
+  - {id: "APP:4.5.2-ANDROID", version: 4.5.2, platform: android, note: 当前主流版本}
+  - {id: "APP:4.5.2-IOS", version: 4.5.2, platform: ios, note: 当前主流版本}

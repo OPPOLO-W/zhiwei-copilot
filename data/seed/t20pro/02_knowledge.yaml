@@ -1,0 +1,324 @@
+# =============================================================================
+# 02 故障知识（T20 PRO 单机型 ABox 种子）
+# -----------------------------------------------------------------------------
+# 诊断链路：ErrorCode -> Symptom -> Fault -> Cause -> Check -> Solution
+# 所有 cf（置信度）是**启发式分数**，用于排序与阈值，不是校准概率。
+#
+# 证据分级（详见本文件 evidence 段）：
+#   * documents 已全部对齐 data/raw/docs.jsonl 的真实 doc_id（1 本手册 + 58 篇 FAQ），
+#     不再使用 DOC:T30-MANUAL 等语料中不存在的文档。
+#   * 错误码层（E11/10010 等）在手册中查不到对应编码，属厂商公开提示码惯例，
+#     统一挂 SYN:ASSUMED-CODES，不建 DOCUMENTED_IN 边。
+#   * 根因层（causes）与方案优先级（precedence）属工程先验，语料无原文，标 assumed。
+#   * 其余层为对语料的改写摘要（paraphrase），逐字核对后应升为 verbatim。
+# =============================================================================
+
+sources:
+  default: DOC:T20PRO-MANUAL
+  codes: SYN:ASSUMED-CODES
+  symptom: DOC:T20PRO-MANUAL
+  fault: DOC:T20PRO-MANUAL
+  cause: SYN:ASSUMED-CAUSES
+  check: DOC:T20PRO-MANUAL
+  solution: DOC:T20PRO-MANUAL
+  precedence: SYN:ASSUMED-CAUSES
+  firmware: DOC:T20PRO-MANUAL
+
+evidence:
+  codes: assumed
+  symptom: paraphrase
+  fault: paraphrase
+  cause: assumed
+  check: paraphrase
+  solution: paraphrase
+  precedence: assumed
+  firmware: assumed
+
+categories:
+  - {code: HARDWARE, name: 硬件故障, selfServiceable: false, note: 部件或电机类故障，通常需备件}
+  - {code: CONSUMABLE, name: 耗材相关, selfServiceable: true, note: 耗材磨损、堵塞、未安装}
+  - {code: NETWORK, name: 网络与连接, selfServiceable: true, note: 配网、Wi-Fi、APP 与固件}
+  - {code: OPERATION, name: 用户操作, selfServiceable: true, note: 未按说明安装或设置}
+  - {code: SAFETY, name: 安全风险, selfServiceable: false, note: 电池、进水、过热等，必须停止使用}
+
+environments:
+  - {code: PET, name: 养宠家庭, note: 宠物毛发与宠物粪便显著提高缠绕与异味风险}
+  - {code: LONG-HAIR, name: 长发家庭, note: 长发易缠绕主刷与轮轴}
+  - {code: CARPET, name: 地毯环境, note: 地毯流苏与绒毛影响越障与吸力}
+  - {code: DUPLEX, name: 复式/多层, note: 多层地图切换，易出现地图丢失}
+  - {code: LARGE-HOME, name: 大户型, note: 面积大，续航与回充压力更高}
+  - {code: BALCONY, name: 阳台/推拉门, note: 门槛与轨道影响越障}
+
+agents:
+  - {code: OFFICIAL-400, name: 官方售后 400 热线, type: official, slaHours: 24}
+  - {code: OFFICIAL-STORE-SH, name: 上海官方服务中心, type: official, city: 上海, slaHours: 48}
+  - {code: OFFICIAL-STORE-BJ, name: 北京官方服务中心, type: official, city: 北京, slaHours: 48}
+  - {code: ONLINE-SUPPORT, name: 在线客服, type: official, slaHours: 4}
+  - {code: THIRD-PARTY-REPAIR, name: 第三方维修点, type: third_party, slaHours: 72}
+  - {code: SPARE-PARTS-CENTER, name: 官方备件商城, type: official, slaHours: 72}
+
+documents:
+  - {id: DOC:T20PRO-MANUAL, docId: DOC:T20PRO-MANUAL, title: "地宝 DEEBOT T20 PRO", docType: user_manual, product: T20 PRO, pageCount: 32, authority: 5, url: "documents/User_Manual/地宝 DEEBOT T20 PRO.pdf", note: 含产品组成、产品使用、部件保养、常见问题排查（26-29 页故障表）、产品参数}
+  - {id: DOC:FAQ-15901, docId: DOC:FAQ-15901, title: "App提示：主机与基站断开连接，请检查/基站无法控制主机", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15901.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15903, docId: DOC:FAQ-15903, title: "ECOVACS HOME APP和机器人连接后离线如何处理?", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15903.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15808, docId: DOC:FAQ-15808, title: "OKYIKO语音助手无法唤醒，唤醒后机器不执行或延迟执行？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15808.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-16675, docId: DOC:FAQ-16675, title: "器人提示“抹布支架缠绕 ”/未完整安装 如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-16675.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-16117, docId: DOC:FAQ-16117, title: "在基站清洁抹布时不出热水，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-16117.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15904, docId: DOC:FAQ-15904, title: "基站清洁槽内有脏污，如何使用自清洁功能来清理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15904.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15906, docId: DOC:FAQ-15906, title: "如何使用OZMO Turbo旋转加压擦地系统？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15906.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15918, docId: DOC:FAQ-15918, title: "如何使用区域/家居/自定义清洁/省心模式？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15918.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15932, docId: DOC:FAQ-15932, title: "如何使用基站功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15932.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15940, docId: DOC:FAQ-15940, title: "如何使用定制清洁/清扫顺序功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15940.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15926, docId: DOC:FAQ-15926, title: "如何使用家居装修功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15926.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15804, docId: DOC:FAQ-15804, title: "如何使用机器人二维码或极简版小程共享功能 ？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15804.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15909, docId: DOC:FAQ-15909, title: "如何使用机器人童锁功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15909.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15907, docId: DOC:FAQ-15907, title: "如何快速建立地图？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15907.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15911, docId: DOC:FAQ-15911, title: "如何打开自动集尘仓/更换集尘袋？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15911.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15799, docId: DOC:FAQ-15799, title: "如何正确下载ECOVACS HOME APP？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15799.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15803, docId: DOC:FAQ-15803, title: "如何正确使用OK YIKO语音助手？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15803.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15927, docId: DOC:FAQ-15927, title: "如何正确使用地图管理功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15927.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15912, docId: DOC:FAQ-15912, title: "如何正确使用机器人Wi-Fi管理功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15912.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15925, docId: DOC:FAQ-15925, title: "如何正确使用机器人个性化语音功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15925.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15929, docId: DOC:FAQ-15929, title: "如何正确切换机器人的清洁模式？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15929.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15802, docId: DOC:FAQ-15802, title: "如何正确安装机器人？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15802.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15899, docId: DOC:FAQ-15899, title: "如何正确安装缓释银离子（选配）？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15899.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15806, docId: DOC:FAQ-15806, title: "如何正确拆卸/清理/安装尘盒？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15806.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15807, docId: DOC:FAQ-15807, title: "如何正确拆卸/清理/安装滚刷？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15807.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15805, docId: DOC:FAQ-15805, title: "如何正确拆卸/清理/安装边刷？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15805.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15905, docId: DOC:FAQ-15905, title: "如何正确拆卸拖布支架及拖布清理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15905.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15924, docId: DOC:FAQ-15924, title: "如何正确清理污水箱及清水箱？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15924.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15800, docId: DOC:FAQ-15800, title: "如何正确登录ECOVACS HOME APP？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15800.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15801, docId: DOC:FAQ-15801, title: "如何正确给机器人充电？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15801.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15939, docId: DOC:FAQ-15939, title: "如何正确设置机器人预约功能？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15939.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15897, docId: DOC:FAQ-15897, title: "如何正确连接小爱音箱？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15897.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15908, docId: DOC:FAQ-15908, title: "如何给机器人连接网络？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15908.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15920, docId: DOC:FAQ-15920, title: "如何设置机器人拖布烘干时长？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15920.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15921, docId: DOC:FAQ-15921, title: "如何调整机器人返回基站洗拖布的间隔时间？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15921.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15919, docId: DOC:FAQ-15919, title: "提示地宝被阻挡/清洁被终止，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15919.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15890, docId: DOC:FAQ-15890, title: "未设置定时预约，却在固定或不固定时间自动出来工作，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15890.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15913, docId: DOC:FAQ-15913, title: "机器人不执行智能断点续扫如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15913.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-16621, docId: DOC:FAQ-16621, title: "机器人与小度音箱连接及解绑", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-16621.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-17661, docId: DOC:FAQ-17661, title: "机器人与绿米APP的连接及解绑", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-17661.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15809, docId: DOC:FAQ-15809, title: "机器人充不进电/无法充电如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15809.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15928, docId: DOC:FAQ-15928, title: "机器人出现下视异常，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15928.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15892, docId: DOC:FAQ-15892, title: "机器人出现地图混乱/叠图，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15892.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15931, docId: DOC:FAQ-15931, title: "机器人出现拖布支架时转时不转，或拖布支架不转，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15931.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15916, docId: DOC:FAQ-15916, title: "机器人出现漏扫情况，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15916.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15902, docId: DOC:FAQ-15902, title: "机器人固件版本升级失败，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15902.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15891, docId: DOC:FAQ-15891, title: "机器人固件版本升级，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15891.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-16113, docId: DOC:FAQ-16113, title: "机器人在自动适应地毯模式，不抬升或撞飞地垫等，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-16113.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15898, docId: DOC:FAQ-15898, title: "机器人如何与天猫精灵的连接？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15898.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15910, docId: DOC:FAQ-15910, title: "机器人工作时出现实清扫时路线乱如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15910.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15914, docId: DOC:FAQ-15914, title: "机器人找到基站后上不去如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15914.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15900, docId: DOC:FAQ-15900, title: "机器人提示：轻拍D-ToF组件如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15900.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15915, docId: DOC:FAQ-15915, title: "机器人无法返回基站，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15915.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15922, docId: DOC:FAQ-15922, title: "机器人驱动轮被缠绕或表面有脏污，如何清理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15922.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15894, docId: DOC:FAQ-15894, title: "清洁槽内污水无法回收/污水箱没水，报污水箱满，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15894.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15917, docId: DOC:FAQ-15917, title: "运行困难，请检查驱动轮如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15917.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-15893, docId: DOC:FAQ-15893, title: "配网失败/无法连接/app无法上网/无法加入网络，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-15893.html", note: 官网 T20 PRO 常见问题}
+  - {id: DOC:FAQ-16118, docId: DOC:FAQ-16118, title: "集尘失败，未检测到集尘袋或尘袋已满，如何处理？", docType: faq, product: T20 PRO, authority: 4, url: "https://www.ecovacs.cn/deebot/t20/question-16118.html", note: 官网 T20 PRO 常见问题}
+# ---------------------------------------------------------------------------
+# 错误码：必须绑定型号。同一 code 在不同型号下生成不同节点（ERR:<model>:<code>）
+# ---------------------------------------------------------------------------
+codes:
+  - {code: E11, meaning: 左驱动轮异常, family: drive, category: HARDWARE, severity: high, symptom: LEFT-WHEEL-STUCK, models: all, note: E11 表示左驱动轮被异物缠绕、轮组卡滞或驱动异常}
+  - {code: E12, meaning: 右驱动轮异常, family: drive, category: HARDWARE, severity: high, symptom: RIGHT-WHEEL-STUCK, models: all, note: E12 表示右驱动轮异常，排查方式与 E11 对称}
+  - {code: E13, meaning: 边刷异常, family: brush, category: CONSUMABLE, severity: medium, symptom: SIDE-BRUSH-STOPPED, models: all, note: E13 表示边刷被毛发缠绕或刷毛变形}
+  - {code: E14, meaning: 主刷异常, family: brush, category: CONSUMABLE, severity: medium, symptom: MAIN-BRUSH-STOPPED, models: all, note: E14 表示主刷被毛发或异物卡住}
+  - {code: E15, meaning: 风机异常, family: fan, category: HARDWARE, severity: high, symptom: NO-SUCTION, models: all, note: E15 表示风机或风道异常，吸力明显下降}
+  - {code: E21, meaning: 电池温度异常, family: battery, category: SAFETY, severity: critical, symptom: BATTERY-HOT, models: all, note: E21 表示电池温度超出安全范围，需停止充电}
+  - {code: E22, meaning: 电池电量异常, family: battery, category: HARDWARE, severity: medium, symptom: BATTERY-DRAIN-FAST, models: all, note: E22 表示电池电量跳变或续航显著下降}
+  - {code: E23, meaning: 充电异常, family: battery, category: HARDWARE, severity: medium, symptom: NOT-CHARGING, models: all, note: E23 表示设备无法正常充电，需检查触点与电池}
+  - {code: E25, meaning: 下视传感器异常, family: sensor, category: HARDWARE, severity: medium, symptom: STOPS-AT-EDGE, models: all, note: E25 表示下视传感器被遮挡或脏污，导致误判台阶}
+  - {code: E26, meaning: 碰撞传感器异常, family: sensor, category: HARDWARE, severity: medium, symptom: BUMPER-NO-RESPONSE, models: all, note: E26 表示碰撞板卡滞或传感器无响应}
+  - {code: E27, meaning: 激光雷达异常, family: sensor, category: HARDWARE, severity: high, symptom: LDS-NOT-SPINNING, models: all, note: E27 表示激光雷达无法转动或测距异常}
+  - {code: E31, meaning: 尘盒未安装, family: station, category: OPERATION, severity: low, symptom: DUST-BOX-MISSING, models: all, note: E31 表示尘盒未安装或未卡到位}
+  - {code: E32, meaning: 滤网异常, family: fan, category: CONSUMABLE, severity: medium, symptom: WEAK-SUCTION, models: all, note: E32 表示滤网堵塞或未安装，吸力下降}
+  - {code: E33, meaning: 清水箱异常, family: station, category: OPERATION, severity: low, symptom: NO-WATER-FLOW, models: all, note: E33 表示清水箱缺水或未安装到位}
+  - {code: E34, meaning: 污水箱已满, family: station, category: OPERATION, severity: low, symptom: SEWAGE-FULL, models: all, note: E34 表示污水箱已满，需清空}
+  - {code: E41, meaning: 电池严重异常, family: battery, category: SAFETY, severity: critical, symptom: BATTERY-SWELLING, models: all, note: E41 表示电池存在鼓包、漏液等严重安全风险，禁止继续使用}
+  - {code: E42, meaning: 水泵异常, family: station, category: HARDWARE, severity: high, symptom: NO-WATER-FLOW, models: all, note: E42 表示水泵不上水，需排查气阻、堵塞或泵体损坏}
+  - {code: E43, meaning: 拖布支架异常, family: station, category: OPERATION, severity: low, symptom: MOP-PLATE-LOOSE, models: all, note: E43 表示拖布支架未卡紧或识别不到}
+  - {code: "10010", meaning: 配网失败, family: network, category: NETWORK, severity: medium, symptom: PAIRING-FAILED, models: all, note: 10010 表示设备无法完成 Wi-Fi 配网，常见于 5GHz 频段或密码错误}
+  - {code: "10011", meaning: Wi-Fi 信号弱, family: network, category: NETWORK, severity: low, symptom: FREQUENT-OFFLINE, models: all, note: 10011 表示设备与路由器信号弱，易频繁离线}
+  - {code: "10012", meaning: 设备绑定失败, family: network, category: NETWORK, severity: low, symptom: BIND-FAILED, models: all, note: 10012 表示 APP 无法绑定设备，需检查账号、APP 版本与路由器设置}
+  - {code: "10020", meaning: 固件升级失败, family: firmware, category: NETWORK, severity: low, symptom: UPGRADE-FAILED, models: all, note: 10020 表示升级过程中断或校验失败}
+  - {code: "10030", meaning: 地图加载失败, family: map, category: NETWORK, severity: low, symptom: MAP-MISSING, models: all, note: 10030 表示地图无法加载，常见于缓存损坏或多层地图切换}
+
+symptoms:
+  - {code: LEFT-WHEEL-STUCK, name: 左轮不转, severity: high, aliases: [左轮卡住, 左边轮子不动, 左轮异响, 左驱动轮异常], indicates: [{fault: LEFT-WHEEL-STUCK, cf: 0.82}], note: 机器人清扫中停住，APP 提示左轮异常}
+  - {code: RIGHT-WHEEL-STUCK, name: 右轮不转, severity: high, aliases: [右轮卡住, 右边轮子不动], indicates: [{fault: RIGHT-WHEEL-STUCK, cf: 0.82}], note: 机器人原地打转或停住，提示右侧驱动异常}
+  - {code: SIDE-BRUSH-STOPPED, name: 边刷不转, severity: medium, aliases: [边刷不转, 侧刷停转], indicates: [{fault: SIDE-BRUSH-JAM, cf: 0.80}], note: 边刷被毛发缠住后停止转动}
+  - {code: MAIN-BRUSH-STOPPED, name: 主刷不转, severity: medium, aliases: [滚刷不转, 主刷卡住], indicates: [{fault: MAIN-BRUSH-JAM, cf: 0.80}], note: 主刷被毛发或异物卡住}
+  - {code: NO-SUCTION, name: 没有吸力, severity: high, aliases: [吸不起来, 吸力没了], indicates: [{fault: FAN-BLOCKED, cf: 0.70}, {fault: FILTER-CLOG, cf: 0.55}], note: 清扫后地面仍有明显灰尘}
+  - {code: WEAK-SUCTION, name: 吸力变弱, severity: medium, aliases: [吸力变小, 吸不干净], indicates: [{fault: FILTER-CLOG, cf: 0.75}, {fault: FAN-BLOCKED, cf: 0.45}], note: 清扫效果较新机明显下降}
+  - {code: BATTERY-HOT, name: 电池发热, severity: critical, aliases: [机身发烫, 电池烫手], indicates: [{fault: BATTERY-OVERHEAT, cf: 0.85}], note: 机身底部或电池区域异常发热}
+  - {code: BATTERY-SWELLING, name: 电池鼓包, severity: critical, aliases: [电池鼓起来, 电池变形, 电池漏液], indicates: [{fault: BATTERY-OVERHEAT, cf: 0.90}], note: 电池外观膨胀、漏液或异味，属高风险}
+  - {code: BATTERY-DRAIN-FAST, name: 续航明显变短, severity: medium, aliases: [电池不耐用, 一会就没电], indicates: [{fault: BATTERY-AGING, cf: 0.70}], note: 满电清扫面积显著小于标称值}
+  - {code: NOT-CHARGING, name: 无法充电, severity: high, aliases: [充不进电, 回充不充电], indicates: [{fault: CHARGE-CONTACT-FAULT, cf: 0.75}, {fault: BATTERY-AGING, cf: 0.40}], note: 回充后电量不增长或反复断充}
+  - {code: STOPS-AT-EDGE, name: 台阶处误停, severity: medium, aliases: [到台阶就停, 不敢下台阶], indicates: [{fault: CLIFF-SENSOR-FAULT, cf: 0.70}], note: 在平地或无台阶处误判为悬崖}
+  - {code: BUMPER-NO-RESPONSE, name: 碰撞无反应, severity: medium, aliases: [撞墙不停, 碰撞板没反应], indicates: [{fault: BUMPER-STUCK, cf: 0.70}], note: 撞到障碍物后不转向}
+  - {code: LDS-NOT-SPINNING, name: 雷达不转, severity: high, aliases: [激光头不转, 雷达异响], indicates: [{fault: LDS-FAILURE, cf: 0.80}], note: 顶部激光雷达不旋转或建图异常}
+  - {code: DUST-BOX-MISSING, name: 提示尘盒未装, severity: low, aliases: [尘盒没装, 尘盒报错], indicates: [{fault: DUST-BOX-MISSING, cf: 0.95}], note: APP 提示尘盒未安装}
+  - {code: DUST-BAG-FULL, name: 尘袋已满, severity: low, aliases: [尘袋满了, 集尘袋没装], indicates: [{fault: DUST-BAG-FULL, cf: 0.85}], note: 基站提示尘袋已满或未安装}
+  - {code: NO-WATER-FLOW, name: 不出水, severity: medium, aliases: [拖地不出水, 水箱不出水, 基站不上水], indicates: [{fault: WATER-PUMP-FAULT, cf: 0.80}, {fault: WATER-TANK-EMPTY, cf: 0.60}], note: 拖地时地面无湿润或基站不进水}
+  - {code: SEWAGE-FULL, name: 污水箱满, severity: low, aliases: [污水箱满了, 污水报警], indicates: [{fault: SEWAGE-TANK-FULL, cf: 0.95}], note: 基站提示污水箱已满}
+  - {code: MOP-PLATE-LOOSE, name: 拖布支架松动, severity: low, aliases: [拖布没卡紧, 拖布支架掉], indicates: [{fault: MOP-PLATE-NOT-SEATED, cf: 0.85}], note: 拖布支架安装后松动或识别不到}
+  - {code: PAIRING-FAILED, name: 配网失败, severity: medium, aliases: [连不上WiFi, 配网不成功, 一直连不上网], indicates: [{fault: WIFI-PAIR-FAIL, cf: 0.85}], note: APP 配网流程反复失败}
+  - {code: FREQUENT-OFFLINE, name: 频繁离线, severity: low, aliases: [老掉线, 设备离线], indicates: [{fault: WIFI-SIGNAL-WEAK, cf: 0.75}], note: 设备在 APP 中频繁显示离线}
+  - {code: BIND-FAILED, name: 绑定失败, severity: low, aliases: [绑不上设备, 添加设备失败], indicates: [{fault: APP-BIND-FAIL, cf: 0.80}], note: APP 添加设备时绑定失败}
+  - {code: UPGRADE-FAILED, name: 升级失败, severity: low, aliases: [固件升级不了, 升级卡住], indicates: [{fault: FIRMWARE-UPGRADE-FAIL, cf: 0.85}], note: 固件升级中断或反复失败}
+  - {code: MAP-MISSING, name: 地图丢失, severity: low, aliases: [地图没了, 地图加载不出来], indicates: [{fault: MAP-LOAD-FAIL, cf: 0.70}], note: APP 中地图空白或加载失败}
+  - {code: NOISE-ABNORMAL, name: 异响, severity: medium, aliases: [声音很大, 有摩擦声], indicates: [{fault: MAIN-BRUSH-JAM, cf: 0.35}, {fault: FAN-BLOCKED, cf: 0.30}], note: 运行中出现异常摩擦或啸叫}
+  - {code: WATER-LEAK, name: 漏水, severity: high, aliases: [基站漏水, 水箱漏水], indicates: [{fault: WATER-TANK-LEAK, cf: 0.60}, {fault: WATER-PUMP-FAULT, cf: 0.40}], note: 基站周围或机身底部积水}
+  - {code: ODOR, name: 异味, severity: low, aliases: [有臭味, 拖布发臭], indicates: [{fault: SEWAGE-TANK-FULL, cf: 0.50}, {fault: FILTER-CLOG, cf: 0.40}], note: 清洗或集尘后出现异味}
+  - {code: RANDOM-WALK, name: 乱走迷路, severity: medium, aliases: [乱跑, 找不到充电座], indicates: [{fault: LDS-FAILURE, cf: 0.50}, {fault: WIFI-SIGNAL-WEAK, cf: 0.30}], note: 路径混乱、反复撞同一位置}
+
+faults:
+  - {code: LEFT-WHEEL-STUCK, name: 左驱动轮卡滞, component: LEFT-DRIVE-WHEEL, category: HARDWARE, severity: medium, causes: [{cause: HAIR-WRAP-WHEEL, cf: 0.75}, {cause: BEARING-WEAR, cf: 0.45}, {cause: MOTOR-FAULT, cf: 0.30}], note: 左驱动轮卡滞多由毛发缠绕、轴承磨损或电机异常引起}
+  - {code: RIGHT-WHEEL-STUCK, name: 右驱动轮卡滞, component: RIGHT-DRIVE-WHEEL, category: HARDWARE, severity: medium, causes: [{cause: HAIR-WRAP-WHEEL, cf: 0.75}, {cause: BEARING-WEAR, cf: 0.45}, {cause: MOTOR-FAULT, cf: 0.30}], note: 右驱动轮卡滞与左轮同源，排查方法对称}
+  - {code: SIDE-BRUSH-JAM, name: 边刷缠绕卡滞, component: SIDE-BRUSH, category: CONSUMABLE, severity: low, causes: [{cause: HAIR-WRAP-SIDE-BRUSH, cf: 0.70}, {cause: BRUSH-DEFORMED, cf: 0.50}], note: 边刷刷毛缠绕毛发后会停止转动}
+  - {code: MAIN-BRUSH-JAM, name: 主刷缠绕卡滞, component: MAIN-BRUSH, category: CONSUMABLE, severity: medium, causes: [{cause: HAIR-WRAP-MAIN-BRUSH, cf: 0.80}, {cause: DEBRIS-JAM, cf: 0.50}], note: 主刷缠绕长发或线材后转速下降甚至停转}
+  - {code: FAN-BLOCKED, name: 风机或风道堵塞, component: FAN, category: HARDWARE, severity: high, causes: [{cause: FAN-DEBRIS, cf: 0.65}, {cause: FILTER-CLOG-CAUSE, cf: 0.55}], note: 风机叶轮积尘或风道堵塞导致吸力下降}
+  - {code: FILTER-CLOG, name: 滤网堵塞, component: FILTER, category: CONSUMABLE, severity: medium, causes: [{cause: FILTER-CLOG-CAUSE, cf: 0.85}], note: 滤网积尘后透气性下降，吸力变弱}
+  - {code: BATTERY-OVERHEAT, name: 电池过热或鼓包, component: BATTERY, category: SAFETY, severity: critical, causes: [{cause: BATTERY-SWELL, cf: 0.70}, {cause: OVERHEAT-VENT, cf: 0.50}], note: 电池过热、鼓包、漏液属于高风险，禁止自行拆解}
+  - {code: BATTERY-AGING, name: 电池老化, component: BATTERY, category: HARDWARE, severity: medium, causes: [{cause: BATTERY-AGING-CAUSE, cf: 0.80}], note: 电池循环次数增加后续航下降}
+  - {code: CHARGE-CONTACT-FAULT, name: 充电触点异常, component: CHARGE-CONTACT, category: HARDWARE, severity: medium, causes: [{cause: CONTACT-DIRTY, cf: 0.80}], note: 触点氧化或污渍导致接触不良}
+  - {code: CLIFF-SENSOR-FAULT, name: 下视传感器异常, component: CLIFF-SENSOR, category: HARDWARE, severity: medium, causes: [{cause: SENSOR-DIRTY, cf: 0.70}], note: 下视传感器镜面脏污会误判台阶}
+  - {code: BUMPER-STUCK, name: 碰撞板卡滞, component: BUMPER, category: HARDWARE, severity: low, causes: [{cause: BUMPER-DEBRIS, cf: 0.75}], note: 碰撞板缝隙异物导致回弹不畅}
+  - {code: LDS-FAILURE, name: 激光雷达异常, component: LDS, category: HARDWARE, severity: high, causes: [{cause: LDS-DIRTY, cf: 0.50}, {cause: LDS-HARDWARE, cf: 0.45}], note: 雷达视窗脏污或电机皮带故障导致建图异常}
+  - {code: DUST-BOX-MISSING, name: 尘盒未安装, component: DUST-BIN, category: OPERATION, severity: low, causes: [{cause: DUST-BOX-NOT-SEATED, cf: 0.90}], note: 尘盒未卡到位会触发 E31}
+  - {code: DUST-BAG-FULL, name: 尘袋已满或未装, component: DUST-COLLECT, category: CONSUMABLE, severity: low, causes: [{cause: DUST-BAG-FULL-CAUSE, cf: 0.90}], note: 尘袋积满后需整体更换}
+  - {code: WATER-PUMP-FAULT, name: 水泵异常, component: WATER-PUMP, category: HARDWARE, severity: high, causes: [{cause: PUMP-AIRLOCK, cf: 0.55}, {cause: PUMP-CLOG, cf: 0.50}, {cause: PUMP-BROKEN, cf: 0.25}], note: 水泵不上水需按气阻、堵塞、泵体损坏顺序排查}
+  - {code: WATER-TANK-EMPTY, name: 清水箱缺水, component: WATER-TANK, category: OPERATION, severity: low, causes: [{cause: TANK-NOT-SEATED, cf: 0.70}], note: 清水箱缺水或未卡到位}
+  - {code: WATER-TANK-LEAK, name: 水箱或水路漏水, component: WATER-TANK, category: HARDWARE, severity: medium, causes: [{cause: TANK-SEAL-WORN, cf: 0.60}], note: 密封圈老化或水箱破裂导致漏水}
+  - {code: SEWAGE-TANK-FULL, name: 污水箱已满, component: SEWAGE-TANK, category: OPERATION, severity: low, causes: [{cause: SEWAGE-OVERFLOW, cf: 0.95}], note: 污水箱未及时清空会报警并产生异味}
+  - {code: MOP-PLATE-NOT-SEATED, name: 拖布支架未卡紧, component: MOP-PLATE, category: OPERATION, severity: low, causes: [{cause: MOP-NOT-CLIPPED, cf: 0.90}], note: 拖布支架未卡紧会导致识别失败}
+  - {code: WIFI-PAIR-FAIL, name: 配网失败, component: WIFI-MODULE, category: NETWORK, severity: medium, causes: [{cause: WIFI-5G-BAND, cf: 0.60}, {cause: WIFI-PASSWORD, cf: 0.40}, {cause: ROUTER-ISOLATION, cf: 0.35}, {cause: FW-BUG, cf: 0.30}], note: 配网失败多为 2.4GHz 频段、密码或固件问题，与主板无关}
+  - {code: WIFI-SIGNAL-WEAK, name: Wi-Fi 信号弱, component: WIFI-MODULE, category: NETWORK, severity: low, causes: [{cause: ROUTER-DISTANCE, cf: 0.70}], note: 路由器距离过远或隔墙过多导致信号弱}
+  - {code: APP-BIND-FAIL, name: 设备绑定失败, component: WIFI-MODULE, category: NETWORK, severity: low, causes: [{cause: APP-VERSION-OLD, cf: 0.60}, {cause: ROUTER-ISOLATION, cf: 0.30}], note: 绑定失败常与 APP 版本或路由器隔离有关}
+  - {code: FIRMWARE-UPGRADE-FAIL, name: 固件升级失败, component: MAINBOARD, category: NETWORK, severity: low, causes: [{cause: FW-NETWORK-INTERRUPT, cf: 0.60}], note: 升级过程网络中断会导致校验失败}
+  - {code: MAP-LOAD-FAIL, name: 地图加载失败, component: MAINBOARD, category: NETWORK, severity: low, causes: [{cause: MAP-CACHE-CORRUPT, cf: 0.50}, {cause: APP-VERSION-OLD, cf: 0.30}], note: 地图缓存损坏或多层地图切换失败}
+
+causes:
+  - {code: HAIR-WRAP-WHEEL, name: 轮轴毛发或线材缠绕, category: environment, userFixable: true, confirm: [SPIN-LEFT-WHEEL], resolvedBy: [{solution: CLEAN-WHEEL, cf: 0.85}], note: 长发与宠物毛发易缠绕驱动轮轴}
+  - {code: BEARING-WEAR, name: 轮组轴承磨损, category: hardware, userFixable: false, confirm: [CHECK-WHEEL-BEARING], resolvedBy: [{solution: REPLACE-WHEEL, cf: 0.70}], note: 轴承磨损会导致转动阻力增大并伴异响}
+  - {code: MOTOR-FAULT, name: 驱动电机故障, category: hardware, userFixable: false, confirm: [CHECK-MOTOR-CURRENT], resolvedBy: [{solution: ESCALATE-SERVICE, cf: 0.60}], note: 电机绕组或驱动电路故障需售后检测}
+  - {code: HAIR-WRAP-SIDE-BRUSH, name: 边刷刷毛缠绕, category: environment, userFixable: true, confirm: [INSPECT-SIDE-BRUSH], resolvedBy: [{solution: CLEAN-SIDE-BRUSH, cf: 0.80}], note: 边刷轴心易缠绕长发}
+  - {code: BRUSH-DEFORMED, name: 刷毛变形, category: consumable, userFixable: true, confirm: [INSPECT-SIDE-BRUSH], resolvedBy: [{solution: REPLACE-SIDE-BRUSH, cf: 0.75}], note: 刷毛外翻变形后清扫与转动异常}
+  - {code: HAIR-WRAP-MAIN-BRUSH, name: 主刷毛发缠绕, category: environment, userFixable: true, confirm: [INSPECT-MAIN-BRUSH], resolvedBy: [{solution: CLEAN-MAIN-BRUSH, cf: 0.85}], note: 主刷两端轴承处最易缠绕长发}
+  - {code: DEBRIS-JAM, name: 异物卡入主刷, category: environment, userFixable: true, confirm: [INSPECT-MAIN-BRUSH], resolvedBy: [{solution: CLEAN-MAIN-BRUSH, cf: 0.70}], note: 纸团、塑料袋等异物卡住主刷}
+  - {code: FAN-DEBRIS, name: 风机叶轮积尘, category: environment, userFixable: false, confirm: [CHECK-AIRFLOW], resolvedBy: [{solution: CLEAN-FAN, cf: 0.70}], note: 长期使用后叶轮积尘导致风量下降}
+  - {code: FILTER-CLOG-CAUSE, name: 滤网积尘堵塞, category: consumable, userFixable: true, confirm: [CHECK-FILTER], resolvedBy: [{solution: CLEAN-FILTER, cf: 0.60}, {solution: REPLACE-FILTER, cf: 0.80}], note: 滤网可用清水冲洗晾干，超周期需更换}
+  - {code: BATTERY-SWELL, name: 电芯鼓包或漏液, category: hardware, userFixable: false, confirm: [SAFETY-VISUAL-CHECK], resolvedBy: [{solution: SAFETY-STOP, cf: 0.95}, {solution: ESCALATE-SERVICE, cf: 0.90}], note: 鼓包、漏液必须停用，禁止自行拆解}
+  - {code: OVERHEAT-VENT, name: 散热不良, category: environment, userFixable: true, confirm: [CHECK-BATTERY-TEMP], resolvedBy: [{solution: SAFETY-STOP, cf: 0.80}, {solution: MOVE-TO-VENTILATED, cf: 0.70}], note: 充电座周围堆物或高温环境导致散热不良}
+  - {code: BATTERY-AGING-CAUSE, name: 电池循环老化, category: hardware, userFixable: false, confirm: [CHECK-BATTERY-RUNTIME], resolvedBy: [{solution: REPLACE-BATTERY, cf: 0.75}], note: 循环次数增加后容量衰减属正常老化}
+  - {code: CONTACT-DIRTY, name: 充电触点氧化, category: environment, userFixable: true, confirm: [CHECK-CONTACT], resolvedBy: [{solution: CLEAN-CONTACT, cf: 0.85}, {solution: REPLACE-CHARGE-CONTACT, cf: 0.55}], note: 潮湿环境易使触点氧化发黑}
+  - {code: SENSOR-DIRTY, name: 下视传感器脏污, category: environment, userFixable: true, confirm: [WIPE-CLIFF-SENSOR], resolvedBy: [{solution: CLEAN-CLIFF-SENSOR, cf: 0.85}], note: 传感器镜面灰尘会导致误判悬崖}
+  - {code: BUMPER-DEBRIS, name: 碰撞板缝隙异物, category: environment, userFixable: true, confirm: [PRESS-BUMPER], resolvedBy: [{solution: CLEAN-BUMPER, cf: 0.80}], note: 缝隙内毛发影响碰撞板回弹}
+  - {code: LDS-DIRTY, name: 雷达视窗脏污, category: environment, userFixable: true, confirm: [WIPE-LDS], resolvedBy: [{solution: CLEAN-LDS, cf: 0.70}], note: 雷达视窗灰尘影响测距}
+  - {code: LDS-HARDWARE, name: 雷达电机或皮带故障, category: hardware, userFixable: false, confirm: [LISTEN-LDS], resolvedBy: [{solution: REPLACE-LDS, cf: 0.60}, {solution: ESCALATE-SERVICE, cf: 0.70}], note: 雷达不转且无异物时多为电机或皮带故障}
+  - {code: DUST-BOX-NOT-SEATED, name: 尘盒未卡到位, category: operation, userFixable: true, confirm: [CHECK-DUST-BOX], resolvedBy: [{solution: RESEAT-DUST-BOX, cf: 0.90}], note: 尘盒未推到底会触发 E31}
+  - {code: DUST-BAG-FULL-CAUSE, name: 尘袋积满, category: consumable, userFixable: true, confirm: [CHECK-DUST-BAG], resolvedBy: [{solution: REPLACE-DUST-BAG, cf: 0.90}], note: 尘袋满后必须整体更换}
+  - {code: PUMP-AIRLOCK, name: 水泵气阻, category: operation, userFixable: true, confirm: [PRIME-WATER-PATH], resolvedBy: [{solution: PRIME-PUMP, cf: 0.80}], note: 新装或长期停用后管路进气形成气阻}
+  - {code: PUMP-CLOG, name: 水路水垢堵塞, category: environment, userFixable: true, confirm: [CHECK-WATER-FLOW], resolvedBy: [{solution: DESCALE-WATER-PATH, cf: 0.75}], note: 硬水地区易在管路与水泵处结垢}
+  - {code: PUMP-BROKEN, name: 水泵损坏, category: hardware, userFixable: false, confirm: [CHECK-WATER-FLOW], resolvedBy: [{solution: REPLACE-PUMP, cf: 0.80}], note: 排气与除垢无效时考虑泵体损坏}
+  - {code: TANK-NOT-SEATED, name: 水箱未卡到位, category: operation, userFixable: true, confirm: [CHECK-WATER-TANK], resolvedBy: [{solution: RESEAT-WATER-TANK, cf: 0.85}], note: 水箱未卡到位会触发 E33}
+  - {code: TANK-SEAL-WORN, name: 水箱密封圈老化, category: hardware, userFixable: true, confirm: [CHECK-WATER-LEAK], resolvedBy: [{solution: REPLACE-TANK-SEAL, cf: 0.70}], note: 密封圈老化导致渗水}
+  - {code: SEWAGE-OVERFLOW, name: 污水箱未清空, category: operation, userFixable: true, confirm: [CHECK-SEWAGE-TANK], resolvedBy: [{solution: EMPTY-SEWAGE-TANK, cf: 0.90}], note: 污水箱满后继续工作会报警并产生异味}
+  - {code: MOP-NOT-CLIPPED, name: 拖布支架未卡紧, category: operation, userFixable: true, confirm: [CHECK-MOP-PLATE], resolvedBy: [{solution: RESEAT-MOP-PLATE, cf: 0.90}], note: 支架未卡紧会导致识别失败与拖地偏移}
+  - {code: WIFI-5G-BAND, name: 连接 5GHz 频段, category: operation, userFixable: true, confirm: [CHECK-WIFI-BAND], resolvedBy: [{solution: SWITCH-24G, cf: 0.85}], note: 设备仅支持 2.4GHz，5GHz 会导致配网失败}
+  - {code: WIFI-PASSWORD, name: Wi-Fi 密码错误, category: operation, userFixable: true, confirm: [CHECK-WIFI-CREDENTIAL], resolvedBy: [{solution: RECONFIGURE-WIFI, cf: 0.80}], note: 密码含特殊字符或输入错误导致配网失败}
+  - {code: ROUTER-ISOLATION, name: 路由器隔离或防蹭网, category: environment, userFixable: true, confirm: [CHECK-ROUTER-SETTINGS], resolvedBy: [{solution: ADJUST-ROUTER, cf: 0.70}], note: AP 隔离、MAC 过滤会阻止设备入网}
+  - {code: FW-BUG, name: 固件缺陷, category: software, userFixable: true, confirm: [CHECK-FIRMWARE-NOTES], resolvedBy: [{solution: UPDATE-FIRMWARE, cf: 0.80}], note: 特定固件版本存在已知配网缺陷}
+  - {code: ROUTER-DISTANCE, name: 路由器距离过远, category: environment, userFixable: true, confirm: [CHECK-WIFI-SIGNAL], resolvedBy: [{solution: MOVE-ROUTER, cf: 0.70}], note: 隔墙过多导致信号衰减}
+  - {code: APP-VERSION-OLD, name: APP 版本过低, category: software, userFixable: true, confirm: [CHECK-APP-VERSION], resolvedBy: [{solution: UPDATE-APP, cf: 0.80}], note: 旧版 APP 在新系统上存在兼容问题}
+  - {code: FW-NETWORK-INTERRUPT, name: 升级过程网络中断, category: software, userFixable: true, confirm: [CHECK-NETWORK-STABILITY], resolvedBy: [{solution: RETRY-UPGRADE, cf: 0.80}], note: 升级需稳定网络，中断会导致校验失败}
+  - {code: MAP-CACHE-CORRUPT, name: 地图缓存损坏, category: software, userFixable: true, confirm: [], resolvedBy: [{solution: RESET-MAP, cf: 0.75}], note: 缓存损坏导致地图空白}
+
+checks:
+  - {code: SPIN-LEFT-WHEEL, name: 手动转动左轮, method: 关机后手动转动左轮，感受阻力并听是否有异响, riskLevel: low, durationMin: 2, detects: [LEFT-WHEEL-STUCK], note: 阻力明显或转不动说明存在缠绕或轴承问题}
+  - {code: CHECK-WHEEL-BEARING, name: 检查轮组轴承间隙, method: 拆下轮组晃动轴心，检查是否有明显间隙, riskLevel: medium, durationMin: 5, detects: [LEFT-WHEEL-STUCK, RIGHT-WHEEL-STUCK], note: 轴承间隙过大需更换轮组}
+  - {code: CHECK-MOTOR-CURRENT, name: 检测驱动电机电流, method: 售后用万用表测量电机电流是否超出标称范围, riskLevel: high, durationMin: 15, detects: [LEFT-WHEEL-STUCK, RIGHT-WHEEL-STUCK], note: 需专业人员操作，用户不可自行拆机}
+  - {code: INSPECT-SIDE-BRUSH, name: 检查边刷, method: 翻转机身检查边刷刷毛是否缠绕、是否外翻变形, riskLevel: low, durationMin: 2, detects: [SIDE-BRUSH-JAM], note: 目视即可判断缠绕与变形}
+  - {code: INSPECT-MAIN-BRUSH, name: 检查主刷, method: 取出主刷检查两端轴承处是否缠绕毛发、是否卡有异物, riskLevel: low, durationMin: 3, detects: [MAIN-BRUSH-JAM], note: 主刷两端最易缠绕}
+  - {code: CHECK-AIRFLOW, name: 检查风道与吸力, method: 手掌贴近吸口感受吸力，检查风道是否有异物, riskLevel: low, durationMin: 3, detects: [FAN-BLOCKED], note: 吸力明显减弱说明风道或风机异常}
+  - {code: CHECK-FILTER, name: 检查滤网, method: 取出滤网对着光观察透光性, riskLevel: low, durationMin: 2, detects: [FILTER-CLOG], note: 透光差说明滤网堵塞}
+  - {code: SAFETY-VISUAL-CHECK, name: 电池外观安全检查, method: 观察电池是否有鼓包、变形、漏液或异味，禁止拆解, riskLevel: low, durationMin: 2, detects: [BATTERY-OVERHEAT], note: 出现任一现象立即停用}
+  - {code: CHECK-BATTERY-TEMP, name: 感受电池区域温度, method: 充电 30 分钟后触摸机身底部电池区域温度, riskLevel: low, durationMin: 30, detects: [BATTERY-OVERHEAT], note: 明显烫手需停止充电}
+  - {code: CHECK-BATTERY-RUNTIME, name: 测试满电续航, method: 满电后在标准模式记录清扫面积与耗电速度, riskLevel: low, durationMin: 60, detects: [BATTERY-AGING], note: 续航低于标称 60% 可判断老化}
+  - {code: CHECK-CONTACT, name: 检查充电触点, method: 观察机身与基站触点是否发黑、有污渍或变形, riskLevel: low, durationMin: 2, detects: [CHARGE-CONTACT-FAULT], note: 触点发黑多为氧化}
+  - {code: WIPE-CLIFF-SENSOR, name: 擦拭下视传感器, method: 用干布擦拭底部下视传感器镜面, riskLevel: low, durationMin: 2, detects: [CLIFF-SENSOR-FAULT], note: 擦拭后误停消失即可确认}
+  - {code: PRESS-BUMPER, name: 手动按压碰撞板, method: 按压碰撞板左右两侧，检查回弹是否顺畅, riskLevel: low, durationMin: 2, detects: [BUMPER-STUCK], note: 回弹迟滞说明缝隙有异物}
+  - {code: WIPE-LDS, name: 擦拭雷达视窗, method: 用干布擦拭顶部雷达视窗与侧面透光孔, riskLevel: low, durationMin: 2, detects: [LDS-FAILURE], note: 视窗脏污会导致测距漂移}
+  - {code: LISTEN-LDS, name: 听雷达转动声, method: 开机后贴近雷达听是否持续转动、是否有异响, riskLevel: low, durationMin: 3, detects: [LDS-FAILURE], note: 完全不转或异响说明机械故障}
+  - {code: CHECK-DUST-BOX, name: 检查尘盒安装, method: 取出尘盒重新推到底，听卡扣是否到位, riskLevel: low, durationMin: 1, detects: [DUST-BOX-MISSING], note: 未卡到位会持续报 E31}
+  - {code: CHECK-DUST-BAG, name: 检查尘袋, method: 打开基站上盖检查尘袋是否装满或未安装, riskLevel: low, durationMin: 1, detects: [DUST-BAG-FULL], note: 尘袋不可清洗复用}
+  - {code: PRIME-WATER-PATH, name: 水路排气, method: 取下清水箱重新安装，运行基站清洗程序排出空气, riskLevel: low, durationMin: 5, detects: [WATER-PUMP-FAULT], note: 排气后出水恢复说明为气阻}
+  - {code: CHECK-WATER-FLOW, name: 检查水路出水, method: 触发基站清洗，观察出水是否连续、滤网是否堵塞, riskLevel: low, durationMin: 5, detects: [WATER-PUMP-FAULT, WATER-TANK-LEAK], note: 出水断续多为堵塞}
+  - {code: CHECK-WATER-TANK, name: 检查清水箱安装, method: 取出清水箱检查水位并重新卡到位, riskLevel: low, durationMin: 1, detects: [WATER-TANK-EMPTY], note: 未卡到位会报 E33}
+  - {code: CHECK-WATER-LEAK, name: 检查水箱密封, method: 装满水静置 10 分钟观察接缝是否渗水, riskLevel: low, durationMin: 10, detects: [WATER-TANK-LEAK], note: 接缝渗水说明密封圈老化}
+  - {code: CHECK-SEWAGE-TANK, name: 检查污水箱, method: 取出污水箱查看水位与浮子是否卡住, riskLevel: low, durationMin: 2, detects: [SEWAGE-TANK-FULL], note: 浮子卡住会误报满水}
+  - {code: CHECK-MOP-PLATE, name: 检查拖布支架卡扣, method: 重新安装拖布支架，确认两侧卡扣到位, riskLevel: low, durationMin: 2, detects: [MOP-PLATE-NOT-SEATED], note: 单侧未卡紧会导致识别失败}
+  - {code: CHECK-WIFI-BAND, name: 检查 Wi-Fi 频段, method: 在路由器后台确认 2.4GHz 与 5GHz 是否同名同密码, riskLevel: low, durationMin: 5, detects: [WIFI-PAIR-FAIL], note: 双频合一常导致设备连到 5GHz}
+  - {code: CHECK-WIFI-CREDENTIAL, name: 核对 Wi-Fi 密码, method: 用手机连接同一 2.4GHz 网络验证密码正确, riskLevel: low, durationMin: 3, detects: [WIFI-PAIR-FAIL], note: 特殊字符可能导致输入失败}
+  - {code: CHECK-ROUTER-SETTINGS, name: 检查路由器隔离设置, method: 关闭 AP 隔离、MAC 过滤与防蹭网，确认未启用访客网络, riskLevel: low, durationMin: 10, detects: [WIFI-PAIR-FAIL, APP-BIND-FAIL], note: 隔离设置会阻止设备入网}
+  - {code: CHECK-FIRMWARE-NOTES, name: 核对固件已知问题, method: 在 APP 中查看当前固件版本与更新说明, riskLevel: low, durationMin: 3, detects: [WIFI-PAIR-FAIL], note: 特定版本存在已知配网缺陷}
+  - {code: CHECK-WIFI-SIGNAL, name: 检查 Wi-Fi 信号强度, method: 在设备位置用手机测速并查看信号格数, riskLevel: low, durationMin: 5, detects: [WIFI-SIGNAL-WEAK], note: 信号低于两格易离线}
+  - {code: CHECK-APP-VERSION, name: 检查 APP 版本, method: 在应用商店确认是否为最新版本, riskLevel: low, durationMin: 2, detects: [APP-BIND-FAIL, MAP-LOAD-FAIL], note: 旧版 APP 存在兼容问题}
+  - {code: CHECK-NETWORK-STABILITY, name: 检查网络稳定性, method: 升级前用手机在同一网络下进行持续测速, riskLevel: low, durationMin: 5, detects: [FIRMWARE-UPGRADE-FAIL], note: 丢包会导致升级校验失败}
+
+solutions:
+  - {code: CLEAN-WHEEL, name: 清理轮组缠绕物, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15922], note: 关机后剪断并清除轮轴毛发，再手动转动确认顺畅}
+  - {code: REPLACE-WHEEL, name: 更换轮组总成, type: replace, riskLevel: medium, selfServiceable: true, estimatedMin: 20, parts: [LEFT-WHEEL-ASSY], docs: [DOC:T20PRO-MANUAL], note: 轴承磨损或轮组变形时更换对应侧轮组}
+  - {code: ESCALATE-SERVICE, name: 转官方售后检测, type: escalate, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:T20PRO-MANUAL], note: 涉及电机、主板、电池的故障应转官方售后}
+  - {code: CLEAN-SIDE-BRUSH, name: 清理边刷, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:FAQ-15805], note: 取下边刷清除缠绕毛发}
+  - {code: REPLACE-SIDE-BRUSH, name: 更换边刷, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 5, consumes: [SIDE-BRUSH], docs: [DOC:FAQ-15805], note: 刷毛变形或断裂时成对更换}
+  - {code: CLEAN-MAIN-BRUSH, name: 清理主刷, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15807], note: 用清理刀割断缠绕毛发并取出异物}
+  - {code: REPLACE-MAIN-BRUSH, name: 更换主刷, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 5, consumes: [MAIN-BRUSH], docs: [DOC:FAQ-15807], note: 胶条磨损或变形时更换}
+  - {code: CLEAN-FAN, name: 清理风机与风道, type: clean, riskLevel: medium, selfServiceable: false, estimatedMin: 15, docs: [], note: 风机位于机身内部，建议售后清理}
+  - {code: CLEAN-FILTER, name: 清洗滤网, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:T20PRO-MANUAL], note: 清水冲洗后需完全晾干再装回}
+  - {code: REPLACE-FILTER, name: 更换滤网, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 3, consumes: [FILTER], docs: [DOC:T20PRO-MANUAL], note: 每 3 个月或无法洗净时更换}
+  - {code: SAFETY-STOP, name: 立即停用并断开充电, type: escalate, riskLevel: low, selfServiceable: true, estimatedMin: 1, docs: [DOC:T20PRO-MANUAL], note: 停止使用与充电，远离可燃物，联系官方售后}
+  - {code: MOVE-TO-VENTILATED, name: 移至通风处降温, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 30, docs: [], note: 移至阴凉通风处自然降温，禁止继续充电}
+  - {code: REPLACE-BATTERY, name: 更换电池组, type: replace, riskLevel: high, selfServiceable: false, estimatedMin: 60, parts: [BATTERY-PACK], docs: [], note: 电池为不可自行拆解部件，必须由官方售后更换}
+  - {code: CLEAN-CONTACT, name: 清洁充电触点, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:T20PRO-MANUAL], note: 用干布或橡皮擦清洁触点氧化层，禁止用湿布}
+  - {code: CLEAN-CLIFF-SENSOR, name: 清洁下视传感器, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 3, docs: [DOC:T20PRO-MANUAL], note: 干布擦拭底部传感器镜面}
+  - {code: CLEAN-BUMPER, name: 清理碰撞板缝隙, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:T20PRO-MANUAL], note: 清除碰撞板缝隙毛发使其回弹顺畅}
+  - {code: CLEAN-LDS, name: 清洁雷达视窗, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 3, docs: [DOC:T20PRO-MANUAL], note: 干布擦拭雷达视窗，禁止使用酒精}
+  - {code: REPLACE-LDS, name: 更换激光雷达总成, type: replace, riskLevel: high, selfServiceable: false, estimatedMin: 60, parts: [LDS-ASSY], docs: [], note: 雷达电机或皮带故障需售后更换总成}
+  - {code: RESEAT-DUST-BOX, name: 重新安装尘盒, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 1, docs: [DOC:FAQ-15806], note: 尘盒推到底直到卡扣到位}
+  - {code: REPLACE-DUST-BAG, name: 更换尘袋, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 3, consumes: [DUST-BAG], docs: [DOC:FAQ-15911], note: 尘袋满后整体更换，不可清洗复用}
+  - {code: PRIME-PUMP, name: 水泵排气, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:T20PRO-MANUAL], note: 重新安装清水箱并运行基站清洗程序排气}
+  - {code: DESCALE-WATER-PATH, name: 水路除垢, type: clean, riskLevel: medium, selfServiceable: true, estimatedMin: 30, consumes: [CLEANING-LIQUID], docs: [DOC:T20PRO-MANUAL], note: 使用官方清洁液按说明浸泡管路除垢}
+  - {code: REPLACE-PUMP, name: 更换水泵总成, type: replace, riskLevel: high, selfServiceable: false, estimatedMin: 60, parts: [WATER-PUMP-ASSY], docs: [], note: 排气与除垢均无效时更换水泵}
+  - {code: RESEAT-WATER-TANK, name: 重新安装清水箱, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 2, docs: [DOC:FAQ-15924], note: 加满清水并卡到位}
+  - {code: REPLACE-TANK-SEAL, name: 更换水箱密封圈, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [], note: 密封圈老化渗水时更换}
+  - {code: EMPTY-SEWAGE-TANK, name: 清空并清洗污水箱, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15924], note: 清空污水箱并用清水冲洗，晾干后装回}
+  - {code: RESEAT-MOP-PLATE, name: 重新安装拖布支架, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 2, docs: [DOC:FAQ-15905], note: 两侧卡扣同时压紧直到听到咔哒声}
+  - {code: SWITCH-24G, name: 切换到 2.4GHz 频段, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15893], note: 在路由器中分开双频或关闭 5GHz 后重新配网}
+  - {code: RECONFIGURE-WIFI, name: 重新配网, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15908], note: 重置网络后按 APP 引导重新配网}
+  - {code: ADJUST-ROUTER, name: 调整路由器设置, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 15, docs: [DOC:FAQ-15893], note: 关闭 AP 隔离与 MAC 过滤}
+  - {code: UPDATE-FIRMWARE, name: 升级固件, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 20, docs: [DOC:FAQ-15891], note: 在稳定网络下升级至最新固件}
+  - {code: MOVE-ROUTER, name: 调整路由器位置, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 20, docs: [DOC:FAQ-15893], note: 缩短设备与路由器距离，减少隔墙}
+  - {code: UPDATE-APP, name: 升级 APP, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [], note: 升级到最新版本 APP}
+  - {code: RETRY-UPGRADE, name: 重试固件升级, type: reconfigure, riskLevel: low, selfServiceable: true, estimatedMin: 25, docs: [DOC:FAQ-15902], note: 在稳定网络与充足电量下重试升级}
+  - {code: REPLACE-CHARGE-CONTACT, name: 更换充电触点组件, type: replace, riskLevel: medium, selfServiceable: true, estimatedMin: 15, parts: [CHARGE-CONTACT-SET], docs: [DOC:T20PRO-MANUAL], note: 触点严重氧化或变形时更换触点组件}
+  - {code: RESET-MAP, name: 重建地图, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 30, docs: [DOC:FAQ-15907], note: 删除旧地图并重新建图}
+
+# 处置步骤先后顺序（R19 使用）
+precedence:
+  - {before: RESEAT-WATER-TANK, after: PRIME-PUMP, note: 先确认水箱安装与水位，再排气}
+  - {before: PRIME-PUMP, after: DESCALE-WATER-PATH, note: 排气无效再除垢}
+  - {before: DESCALE-WATER-PATH, after: REPLACE-PUMP, note: 除垢无效再换泵}
+  - {before: CLEAN-WHEEL, after: REPLACE-WHEEL, note: 先清理再考虑换轮组}
+  - {before: CLEAN-FILTER, after: REPLACE-FILTER, note: 先清洗再更换}
+  - {before: CLEAN-CONTACT, after: REPLACE-CHARGE-CONTACT, note: 先清洁触点再考虑更换}
+  - {before: CLEAN-LDS, after: REPLACE-LDS, note: 先清洁视窗再换总成}
+  - {before: SWITCH-24G, after: RECONFIGURE-WIFI, note: 先确认频段再重新配网}
+  - {before: SAFETY-STOP, after: ESCALATE-SERVICE, note: 先停用再联系售后}
+  - {before: SAFETY-STOP, after: MOVE-TO-VENTILATED, note: 先停用再降温}
+
+# 固件已知问题（R10 使用）
+knownIssues:
+  - {firmware: "FW:T20-2.1.0", fault: WATER-PUMP-FAULT, note: 2.1.0 早期批次水泵控制参数异常}
