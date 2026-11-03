@@ -1,0 +1,314 @@
+# =============================================================================
+# 诊断规则集（24 条）
+# -----------------------------------------------------------------------------
+# 语法约定
+#   ?X        变量（结论中出现的变量必须在条件里绑定）
+#   其他 token 为常量（型号代码、类目代码等）
+#   where     数值/字符串比较表达式
+#   absent    否定即失败：以已绑定变量做前缀匹配，要求不存在任何匹配事实
+#   cf        置信度：字面量 / 变量 / 表达式（min、max 可用）
+#   combine   max（默认，同一结论多条推导取最大）| noisy_or（独立证据合并）
+#
+# 语义边界：闭世界假设；置信度为启发式分数，不是校准概率。
+# =============================================================================
+version: "1.0"
+
+rules:
+  # ---------------- 症状 → 候选故障 ----------------
+  - id: R01
+    name: 型号部件候选
+    category: diagnosis
+    priority: 40
+    when:
+      - {pred: case_about_model, args: ["?T", "?M"]}
+      - {pred: model_has_component, args: ["?M", "?C"]}
+    then:
+      - {pred: suspect_component, args: ["?T", "?C"], cf: 0.30}
+    explanation: "案例{T}的型号包含部件{C}，列为待排查部件"
+
+  - id: R02
+    name: 歧义症状保留全部候选
+    category: diagnosis
+    priority: 45
+    when:
+      - {pred: observed, args: ["?T", "?S"]}
+      - {pred: symptom_fault_count, args: ["?S", "?N"], where: "N >= 2"}
+    then:
+      - {pred: ambiguous_symptom, args: ["?T", "?S"], cf: 1.0}
+    explanation: "症状{S}可指向{N}个故障，标记为歧义并保留全部候选"
+
+  - id: R03
+    name: 症状指向候选故障
+    category: diagnosis
+    priority: 50
+    when:
+      - {pred: observed, args: ["?T", "?S"]}
+      - {pred: symptom_indicates, args: ["?S", "?F", "?CF"], where: "CF >= 0.6"}
+    then:
+      - {pred: suspect_fault, args: ["?T", "?F"], cf: "CF"}
+    explanation: "案例{T}观察到症状{S}，该症状以置信度{CF}指向故障{F}"
+
+  - id: R04
+    name: 部件一致性加权
+    category: diagnosis
+    priority: 55
+    when:
+      - {pred: suspect_fault, args: ["?T", "?F", "?CF"]}
+      - {pred: fault_occurs_in, args: ["?F", "?C"]}
+      - {pred: case_about_model, args: ["?T", "?M"]}
+      - {pred: model_has_component, args: ["?M", "?C"]}
+    then:
+      - {pred: fault_boost, args: ["?T", "?F", 0.1]}
+    explanation: "故障{F}发生在部件{C}，且该型号确实包含此部件，置信度上调 0.1"
+
+  - id: R05
+    name: 故障推导根因
+    category: diagnosis
+    priority: 50
+    when:
+      - {pred: suspect_fault, args: ["?T", "?F", "?CF"]}
+      - {pred: fault_caused_by, args: ["?F", "?CA", "?CFC"], where: "CFC >= 0.3"}
+    then:
+      - {pred: suspect_cause, args: ["?T", "?F", "?CA"], cf: "CF * CFC"}
+    explanation: "故障{F}的根因可能是{CA}（贝叶斯式连乘，仅用于排序）"
+
+  - id: R06
+    name: 根因推导候选方案
+    category: diagnosis
+    priority: 50
+    when:
+      - {pred: suspect_cause, args: ["?T", "?F", "?CA", "?CF"]}
+      - {pred: cause_resolved_by, args: ["?CA", "?SOL", "?CFS"]}
+    then:
+      - {pred: candidate_solution, args: ["?T", "?CA", "?SOL"], cf: "CF * CFS"}
+    explanation: "根因{CA}可由方案{SOL}处置"
+
+  # ---------------- 方案排序与过滤 ----------------
+  - id: R07
+    name: 官方文档加权
+    category: ranking
+    priority: 60
+    when:
+      - {pred: candidate_solution, args: ["?T", "?CA", "?SOL", "?CF"]}
+      - {pred: solution_authority, args: ["?SOL", "?A"], where: "A >= 4"}
+    then:
+      - {pred: solution_score, args: ["?T", "?SOL", "official_doc"], cf: "min(0.99, CF + 0.15)"}
+    explanation: "方案{SOL}有官方手册/FAQ 支撑，排序上调"
+
+  - id: R08
+    name: 兼容性否决
+    category: safety
+    priority: 90
+    when:
+      - {pred: candidate_solution, args: ["?T", "?CA", "?SOL", "?CF"]}
+      - {pred: solution_requires_item, args: ["?SOL", "?I"]}
+      - {pred: case_about_model, args: ["?T", "?M"]}
+      - {pred: compatible_flag, args: ["?I", "?M", 0]}
+    then:
+      - {pred: reject_solution, args: ["?T", "?SOL", "incompatible_item"]}
+    explanation: "方案{SOL}所需耗材/备件与当前型号不兼容，必须否决"
+
+  - id: R09
+    name: 耗材类问题优先清理
+    category: ranking
+    priority: 65
+    when:
+      - {pred: suspect_fault, args: ["?T", "?F", "?CF"]}
+      - {pred: fault_in_category, args: ["?F", "CONSUMABLE"]}
+      - {pred: candidate_solution, args: ["?T", "?CA", "?SOL", "?CFS"]}
+      - {pred: solution_part_count, args: ["?SOL", 0]}
+    then:
+      - {pred: prefer_consumable, args: ["?T", "?SOL", "CFS"]}
+    explanation: "故障{F}属耗材类，且方案{SOL}无需备件，优先推荐清理/更换耗材"
+
+  - id: R10
+    name: 固件已知缺陷加权
+    category: diagnosis
+    priority: 65
+    when:
+      - {pred: case_about, args: ["?T", "?P"]}
+      - {pred: runs_firmware, args: ["?P", "?V"]}
+      - {pred: known_issue, args: ["?V", "?F"]}
+      - {pred: suspect_fault, args: ["?T", "?F", "?CF"]}
+    then:
+      - {pred: fault_boost, args: ["?T", "?F", 0.2]}
+      - {pred: firmware_hint, args: ["?T", "?V"]}
+    explanation: "设备固件{V}存在已知问题{F}，置信度上调并建议评估升级"
+
+  - id: R11
+    name: 同型同症状历史方案
+    category: ranking
+    priority: 45
+    when:
+      - {pred: candidate_solution, args: ["?T", "?CA", "?SOL", "?CF"]}
+      - {pred: historical_solution, args: ["?SOL", "?RATE", "?N"], where: "N >= 2 and RATE >= 0.8"}
+    then:
+      - {pred: solution_score, args: ["?T", "?SOL", "historical"], cf: "min(0.99, CF + 0.1)", combine: noisy_or}
+    explanation: "方案{SOL}在同型号同症状历史案例中成功率{RATE}（样本{N}）"
+
+  - id: R12
+    name: 慢性重复报修
+    category: escalation
+    priority: 80
+    when:
+      - {pred: repeated_issue, args: ["?P", "?S", "?N"], where: "N >= 3"}
+      - {pred: observed, args: ["?T", "?S"]}
+      - {pred: case_about, args: ["?T", "?P"]}
+    then:
+      - {pred: chronic_issue, args: ["?T", "?N"]}
+      - {pred: escalate, args: ["?T", "chronic_issue"]}
+    explanation: "同一设备 90 天内同症状已报修{N}次，建议转官方售后评估"
+
+  - id: R13
+    name: 保修期内优先官方
+    category: escalation
+    priority: 85
+    when:
+      - {pred: case_about, args: ["?T", "?P"]}
+      - {pred: warranty_status, args: ["?P", "in_warranty"]}
+      - {pred: suspect_fault, args: ["?T", "?F", "?CF"]}
+    then:
+      - {pred: prefer_official, args: ["?T", "in_warranty"]}
+    explanation: "设备仍在保修期内，优先官方售后，不建议自行拆机换件"
+
+  # ---------------- 安全与鉴别检查 ----------------
+  - id: R14
+    name: 高风险症状强制停用
+    category: safety
+    priority: 100
+    safety: true
+    when:
+      - {pred: observed, args: ["?T", "?S"]}
+      - {pred: high_risk_symptom, args: ["?S"]}
+    then:
+      - {pred: safety_stop, args: ["?T", 1.0]}
+      - {pred: block_self_service, args: ["?T", "safety"]}
+    explanation: "症状{S}属安全风险（电池/过热/进水等），必须停止使用并联系官方售后"
+
+  - id: R15
+    name: 检查结果排除故障
+    category: diagnosis
+    priority: 75
+    when:
+      - {pred: check_result, args: ["?K", "?F1", "positive"]}
+      - {pred: check_detects, args: ["?K", "?F2"]}
+      - {pred: suspect_fault, args: ["?T", "?F2", "?CF"]}
+    where: "F1 != F2"
+    then:
+      - {pred: excluded_fault, args: ["?T", "?F2", "CF"]}
+    explanation: "检查{K}结果为{F1}阳性，排除故障{F2}"
+
+  - id: R16
+    name: 鉴别性检查推荐
+    category: diagnosis
+    priority: 60
+    when:
+      - {pred: ambiguous_symptom, args: ["?T", "?S"]}
+      - {pred: suspect_fault, args: ["?T", "?F1"]}
+      - {pred: suspect_fault, args: ["?T", "?F2"]}
+      - {pred: check_detects, args: ["?K", "?F1"]}
+      - {pred: check_detects, args: ["?K", "?F2"], absent: true}
+    where: "F1 < F2"
+    then:
+      - {pred: next_check, args: ["?T", "?K", 1.0]}
+    explanation: "检查{K}可确认{F1}且不指向{F2}，作为下一步鉴别性检查"
+
+  - id: R17
+    name: 检查项排序
+    category: diagnosis
+    priority: 35
+    when:
+      - {pred: suspect_cause, args: ["?T", "?F", "?CA", "?CF"]}
+      - {pred: cause_confirmed_by, args: ["?CA", "?K"]}
+      - {pred: check_risk_num, args: ["?K", "?R"]}
+      - {pred: check_duration, args: ["?K", "?D"]}
+    then:
+      - {pred: ordered_check, args: ["?T", "?K", "$R * 100 + D"]}
+    explanation: "检查{K}风险等级{R}、预计{D}分钟，按风险优先、耗时次之排序"
+
+  - id: R18
+    name: 高成功率方案加权
+    category: ranking
+    priority: 40
+    when:
+      - {pred: candidate_solution, args: ["?T", "?CA", "?SOL", "?CF"]}
+      - {pred: solution_success, args: ["?SOL", "?RATE", "?N"], where: "RATE >= 0.8 and N >= 5"}
+    then:
+      - {pred: solution_score, args: ["?T", "?SOL", "success_rate"], cf: "min(0.99, CF + 0.1)", combine: noisy_or}
+    explanation: "方案{SOL}历史成功率{RATE}（样本{N}），排序上调"
+
+  - id: R19
+    name: 处置步骤顺序
+    category: ranking
+    priority: 70
+    when:
+      - {pred: candidate_solution, args: ["?T", "?CA", "?S1"]}
+      - {pred: candidate_solution, args: ["?T", "?CA", "?S2"]}
+      - {pred: solution_precedes, args: ["?S1", "?S2"]}
+    then:
+      - {pred: step_before, args: ["?T", "?S1", "?S2"]}
+    explanation: "方案{S1}应先于{S2}执行"
+
+  # ---------------- 大类与特殊路径 ----------------
+  - id: R20
+    name: 网络类错误码优先查网络
+    category: diagnosis
+    priority: 80
+    when:
+      - {pred: observed, args: ["?T", "?S"]}
+      - {pred: has_code, args: ["?S", "?E"]}
+      - {pred: error_family, args: ["?E", "network"]}
+    then:
+      - {pred: network_issue, args: ["?T", "?E"]}
+      - {pred: suppress_parts, args: ["?T", "network"]}
+    explanation: "错误码{E}属网络类，先查 2.4GHz/密码/配网模式/APP 与固件，不推荐备件"
+
+  - id: R21
+    name: 水路检查顺序
+    category: diagnosis
+    priority: 70
+    when:
+      - {pred: suspect_fault, args: ["?T", "?F", "?CF"]}
+      - {pred: fault_component_code, args: ["?F", "WATER-PUMP"]}
+    then:
+      - {pred: water_sequence, args: ["?T", "tank>filter>pump>pipe"]}
+    explanation: "水路问题按「清水箱 → 滤网 → 水泵 → 管路」顺序排查"
+
+  - id: R22
+    name: 重复工单合并
+    category: hygiene
+    priority: 30
+    when:
+      - {pred: same_issue_within_24h, args: ["?T", "?T2"]}
+    then:
+      - {pred: duplicate_of, args: ["?T", "?T2"]}
+    explanation: "同一设备同症状 24 小时内重复报修，建议合并工单"
+
+  - id: R23
+    name: 根因冲突不下单一结论
+    category: safety
+    priority: 95
+    safety: true
+    when:
+      - {pred: suspect_cause, args: ["?T", "?F", "?C1", "?CF1"], where: "CF1 >= 0.7"}
+      - {pred: suspect_cause, args: ["?T", "?F", "?C2", "?CF2"], where: "CF2 >= 0.7"}
+      - {pred: next_check, args: ["?T"], absent: true}
+    where: "C1 < C2"
+    then:
+      - {pred: conflicting_causes, args: ["?T", "?F"]}
+      - {pred: need_further_check, args: ["?T", "?F"]}
+    explanation: "根因{C1}与{C2}置信度均≥0.7 且无鉴别性检查，不强行下结论"
+
+  - id: R24
+    name: 证据不足明确承认
+    category: safety
+    priority: 95
+    safety: true
+    when:
+      - {pred: observed, args: ["?T", "?S"]}
+      - {pred: candidate_solution, args: ["?T"], absent: true}
+    then:
+      - {pred: no_candidate, args: ["?T"]}
+      - {pred: insufficient_evidence, args: ["?T"]}
+      - {pred: escalate, args: ["?T", "no_solution"]}
+    explanation: "图谱中没有可支撑的方案，输出证据不足并建议补充信息或联系官方售后"
