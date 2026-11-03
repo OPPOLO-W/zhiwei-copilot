@@ -1,0 +1,528 @@
+{
+  "source": "https://www.ecovacs.cn/deebot/t20/welcome-p1.html",
+  "count": 58,
+  "items": [
+    {
+      "id": "15908",
+      "title": "如何给机器人连接网络？",
+      "file": "如何给机器人连接网络.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15908.html",
+      "chars": 1299,
+      "lines": 52
+    },
+    {
+      "id": "15929",
+      "title": "如何正确切换机器人的清洁模式？",
+      "file": "如何正确切换机器人的清洁模式.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15929.html",
+      "chars": 1040,
+      "lines": 55
+    },
+    {
+      "id": "15904",
+      "title": "基站清洁槽内有脏污，如何使用自清洁功能来清理？",
+      "file": "基站清洁槽内有脏污，如何使用自清洁功能来清理.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15904.html",
+      "chars": 270,
+      "lines": 17
+    },
+    {
+      "id": "15907",
+      "title": "如何快速建立地图？",
+      "file": "如何快速建立地图.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15907.html",
+      "chars": 442,
+      "lines": 25
+    },
+    {
+      "id": "15905",
+      "title": "如何正确拆卸拖布支架及拖布清理？",
+      "file": "如何正确拆卸拖布支架及拖布清理.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15905.html",
+      "chars": 241,
+      "lines": 17
+    },
+    {
+      "id": "15931",
+      "title": "机器人出现拖布支架时转时不转，或拖布支架不转，如何处理？",
+      "file": "机器人出现拖布支架时转时不转，或拖布支架不转，如何处理.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15931.html",
+      "chars": 636,
+      "lines": 21
+    },
+    {
+      "id": "15940",
+      "title": "如何使用定制清洁/清扫顺序功能？",
+      "file": "如何使用定制清洁-清扫顺序功能.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15940.html",
+      "chars": 147,
+      "lines": 11
+    },
+    {
+      "id": "15918",
+      "title": "如何使用区域/家居/自定义清洁/省心模式？",
+      "file": "如何使用区域-家居-自定义清洁-省心模式.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15918.html",
+      "chars": 884,
+      "lines": 53
+    },
+    {
+      "id": "15803",
+      "title": "如何正确使用OK YIKO语音助手？",
+      "file": "如何正确使用OK YIKO语音助手.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15803.html",
+      "chars": 323,
+      "lines": 19
+    },
+    {
+      "id": "15927",
+      "title": "如何正确使用地图管理功能？",
+      "file": "如何正确使用地图管理功能.md",
+      "page": 1,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15927.html",
+      "chars": 620,
+      "lines": 47
+    },
+    {
+      "id": "15893",
+      "title": "配网失败/无法连接/app无法上网/无法加入网络，如何处理？",
+      "file": "配网失败-无法连接-app无法上网-无法加入网络，如何处理.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15893.html",
+      "chars": 1370,
+      "lines": 59
+    },
+    {
+      "id": "16118",
+      "title": "集尘失败，未检测到集尘袋或尘袋已满，如何处理？",
+      "file": "集尘失败，未检测到集尘袋或尘袋已满，如何处理.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-16118.html",
+      "chars": 260,
+      "lines": 21
+    },
+    {
+      "id": "16113",
+      "title": "机器人在自动适应地毯模式，不抬升或撞飞地垫等，如何处理？",
+      "file": "机器人在自动适应地毯模式，不抬升或撞飞地垫等，如何处理.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-16113.html",
+      "chars": 601,
+      "lines": 25
+    },
+    {
+      "id": "15802",
+      "title": "如何正确安装机器人？",
+      "file": "如何正确安装机器人.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15802.html",
+      "chars": 297,
+      "lines": 15
+    },
+    {
+      "id": "15920",
+      "title": "如何设置机器人拖布烘干时长？",
+      "file": "如何设置机器人拖布烘干时长.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15920.html",
+      "chars": 185,
+      "lines": 11
+    },
+    {
+      "id": "15801",
+      "title": "如何正确给机器人充电？",
+      "file": "如何正确给机器人充电.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15801.html",
+      "chars": 285,
+      "lines": 15
+    },
+    {
+      "id": "15915",
+      "title": "机器人无法返回基站，如何处理？",
+      "file": "机器人无法返回基站，如何处理.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15915.html",
+      "chars": 431,
+      "lines": 25
+    },
+    {
+      "id": "15928",
+      "title": "机器人出现下视异常，如何处理？",
+      "file": "机器人出现下视异常，如何处理.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15928.html",
+      "chars": 78,
+      "lines": 7
+    },
+    {
+      "id": "15894",
+      "title": "清洁槽内污水无法回收/污水箱没水，报污水箱满，如何处理？",
+      "file": "清洁槽内污水无法回收-污水箱没水，报污水箱满，如何处理.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15894.html",
+      "chars": 309,
+      "lines": 13
+    },
+    {
+      "id": "15897",
+      "title": "如何正确连接小爱音箱？",
+      "file": "如何正确连接小爱音箱.md",
+      "page": 2,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15897.html",
+      "chars": 484,
+      "lines": 27
+    },
+    {
+      "id": "15919",
+      "title": "提示地宝被阻挡/清洁被终止，如何处理？",
+      "file": "提示地宝被阻挡-清洁被终止，如何处理.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15919.html",
+      "chars": 524,
+      "lines": 25
+    },
+    {
+      "id": "15806",
+      "title": "如何正确拆卸/清理/安装尘盒？",
+      "file": "如何正确拆卸-清理-安装尘盒.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15806.html",
+      "chars": 191,
+      "lines": 15
+    },
+    {
+      "id": "15911",
+      "title": "如何打开自动集尘仓/更换集尘袋？",
+      "file": "如何打开自动集尘仓-更换集尘袋.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15911.html",
+      "chars": 77,
+      "lines": 9
+    },
+    {
+      "id": "15939",
+      "title": "如何正确设置机器人预约功能？",
+      "file": "如何正确设置机器人预约功能.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15939.html",
+      "chars": 198,
+      "lines": 17
+    },
+    {
+      "id": "16675",
+      "title": "器人提示“抹布支架缠绕 ”/未完整安装 如何处理？",
+      "file": "器人提示“抹布支架缠绕 ”-未完整安装 如何处理.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-16675.html",
+      "chars": 271,
+      "lines": 12
+    },
+    {
+      "id": "15807",
+      "title": "如何正确拆卸/清理/安装滚刷？",
+      "file": "如何正确拆卸-清理-安装滚刷.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15807.html",
+      "chars": 182,
+      "lines": 11
+    },
+    {
+      "id": "15916",
+      "title": "机器人出现漏扫情况，如何处理？",
+      "file": "机器人出现漏扫情况，如何处理.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15916.html",
+      "chars": 647,
+      "lines": 25
+    },
+    {
+      "id": "15799",
+      "title": "如何正确下载ECOVACS HOME APP？",
+      "file": "如何正确下载ECOVACS HOME APP.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15799.html",
+      "chars": 335,
+      "lines": 17
+    },
+    {
+      "id": "15899",
+      "title": "如何正确安装缓释银离子（选配）？",
+      "file": "如何正确安装缓释银离子（选配）.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15899.html",
+      "chars": 71,
+      "lines": 9
+    },
+    {
+      "id": "15809",
+      "title": "机器人充不进电/无法充电如何处理？",
+      "file": "机器人充不进电-无法充电如何处理.md",
+      "page": 3,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15809.html",
+      "chars": 409,
+      "lines": 17
+    },
+    {
+      "id": "15800",
+      "title": "如何正确登录ECOVACS HOME APP？",
+      "file": "如何正确登录ECOVACS HOME APP.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15800.html",
+      "chars": 336,
+      "lines": 19
+    },
+    {
+      "id": "15921",
+      "title": "如何调整机器人返回基站洗拖布的间隔时间？",
+      "file": "如何调整机器人返回基站洗拖布的间隔时间.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15921.html",
+      "chars": 165,
+      "lines": 7
+    },
+    {
+      "id": "15917",
+      "title": "运行困难，请检查驱动轮如何处理？",
+      "file": "运行困难，请检查驱动轮如何处理.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15917.html",
+      "chars": 89,
+      "lines": 7
+    },
+    {
+      "id": "15804",
+      "title": "如何使用机器人二维码或极简版小程共享功能 ？",
+      "file": "如何使用机器人二维码或极简版小程共享功能.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15804.html",
+      "chars": 330,
+      "lines": 15
+    },
+    {
+      "id": "15932",
+      "title": "如何使用基站功能？",
+      "file": "如何使用基站功能.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15932.html",
+      "chars": 463,
+      "lines": 41
+    },
+    {
+      "id": "15910",
+      "title": "机器人工作时出现实清扫时路线乱如何处理？",
+      "file": "机器人工作时出现实清扫时路线乱如何处理.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15910.html",
+      "chars": 235,
+      "lines": 13
+    },
+    {
+      "id": "15892",
+      "title": "机器人出现地图混乱/叠图，如何处理？",
+      "file": "机器人出现地图混乱-叠图，如何处理.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15892.html",
+      "chars": 214,
+      "lines": 11
+    },
+    {
+      "id": "15924",
+      "title": "如何正确清理污水箱及清水箱？",
+      "file": "如何正确清理污水箱及清水箱.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15924.html",
+      "chars": 133,
+      "lines": 7
+    },
+    {
+      "id": "15891",
+      "title": "机器人固件版本升级，如何处理？",
+      "file": "机器人固件版本升级，如何处理.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15891.html",
+      "chars": 219,
+      "lines": 15
+    },
+    {
+      "id": "16117",
+      "title": "在基站清洁抹布时不出热水，如何处理？",
+      "file": "在基站清洁抹布时不出热水，如何处理.md",
+      "page": 4,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-16117.html",
+      "chars": 257,
+      "lines": 19
+    },
+    {
+      "id": "15805",
+      "title": "如何正确拆卸/清理/安装边刷？",
+      "file": "如何正确拆卸-清理-安装边刷.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15805.html",
+      "chars": 140,
+      "lines": 11
+    },
+    {
+      "id": "15909",
+      "title": "如何使用机器人童锁功能？",
+      "file": "如何使用机器人童锁功能.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15909.html",
+      "chars": 98,
+      "lines": 5
+    },
+    {
+      "id": "15901",
+      "title": "App提示：主机与基站断开连接，请检查/基站无法控制主机",
+      "file": "App提示：主机与基站断开连接，请检查-基站无法控制主机.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15901.html",
+      "chars": 509,
+      "lines": 23
+    },
+    {
+      "id": "15914",
+      "title": "机器人找到基站后上不去如何处理？",
+      "file": "机器人找到基站后上不去如何处理.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15914.html",
+      "chars": 227,
+      "lines": 13
+    },
+    {
+      "id": "15926",
+      "title": "如何使用家居装修功能？",
+      "file": "如何使用家居装修功能.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15926.html",
+      "chars": 126,
+      "lines": 11
+    },
+    {
+      "id": "15898",
+      "title": "机器人如何与天猫精灵的连接？",
+      "file": "机器人如何与天猫精灵的连接.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15898.html",
+      "chars": 878,
+      "lines": 39
+    },
+    {
+      "id": "15903",
+      "title": "ECOVACS HOME APP和机器人连接后离线如何处理?",
+      "file": "ECOVACS HOME APP和机器人连接后离线如何处理.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15903.html",
+      "chars": 475,
+      "lines": 19
+    },
+    {
+      "id": "15913",
+      "title": "机器人不执行智能断点续扫如何处理？",
+      "file": "机器人不执行智能断点续扫如何处理.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15913.html",
+      "chars": 161,
+      "lines": 11
+    },
+    {
+      "id": "15925",
+      "title": "如何正确使用机器人个性化语音功能？",
+      "file": "如何正确使用机器人个性化语音功能.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15925.html",
+      "chars": 84,
+      "lines": 3
+    },
+    {
+      "id": "15912",
+      "title": "如何正确使用机器人Wi-Fi管理功能？",
+      "file": "如何正确使用机器人Wi-Fi管理功能.md",
+      "page": 5,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15912.html",
+      "chars": 153,
+      "lines": 7
+    },
+    {
+      "id": "17661",
+      "title": "机器人与绿米APP的连接及解绑",
+      "file": "机器人与绿米APP的连接及解绑.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-17661.html",
+      "chars": 190,
+      "lines": 7
+    },
+    {
+      "id": "15900",
+      "title": "机器人提示：轻拍D-ToF组件如何处理？",
+      "file": "机器人提示：轻拍D-ToF组件如何处理.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15900.html",
+      "chars": 72,
+      "lines": 7
+    },
+    {
+      "id": "15906",
+      "title": "如何使用OZMO Turbo旋转加压擦地系统？",
+      "file": "如何使用OZMO Turbo旋转加压擦地系统.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15906.html",
+      "chars": 320,
+      "lines": 17
+    },
+    {
+      "id": "15890",
+      "title": "未设置定时预约，却在固定或不固定时间自动出来工作，如何处理？",
+      "file": "未设置定时预约，却在固定或不固定时间自动出来工作，如何处理.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15890.html",
+      "chars": 317,
+      "lines": 13
+    },
+    {
+      "id": "15922",
+      "title": "机器人驱动轮被缠绕或表面有脏污，如何清理？",
+      "file": "机器人驱动轮被缠绕或表面有脏污，如何清理.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15922.html",
+      "chars": 99,
+      "lines": 7
+    },
+    {
+      "id": "15808",
+      "title": "OKYIKO语音助手无法唤醒，唤醒后机器不执行或延迟执行？",
+      "file": "OKYIKO语音助手无法唤醒，唤醒后机器不执行或延迟执行.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15808.html",
+      "chars": 276,
+      "lines": 11
+    },
+    {
+      "id": "15902",
+      "title": "机器人固件版本升级失败，如何处理？",
+      "file": "机器人固件版本升级失败，如何处理.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-15902.html",
+      "chars": 280,
+      "lines": 15
+    },
+    {
+      "id": "16621",
+      "title": "机器人与小度音箱连接及解绑",
+      "file": "机器人与小度音箱连接及解绑.md",
+      "page": 6,
+      "url": "https://www.ecovacs.cn/deebot/t20/question-16621.html",
+      "chars": 335,
+      "lines": 21
+    }
+  ]
+}
