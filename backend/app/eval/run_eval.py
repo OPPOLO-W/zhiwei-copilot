@@ -1,16 +1,16 @@
-"""评测执行器：规则基线 + 检索对照两组系统。
+"""评测执行器：rule / agent / rag 三组系统 + 两组消融。
 
 用法：
     python -m backend.app.eval.run_eval --system rule
-    python -m backend.app.eval.run_eval --system rag --limit 20
-    python -m backend.app.eval.run_eval --all --repeat 3     # 两组 × 3 次，出均值±标准差
+    python -m backend.app.eval.run_eval --system agent --limit 20
+    python -m backend.app.eval.run_eval --all --repeat 3     # 五组 × 3 次，出均值±标准差
 
 说明：vanilla-rag 是「检索若干三元组 → 单轮生成」的弱基线，仅用于对比；
 本实现不调用 LLM，直接用最强三元组套模板，因此它代表「无规则约束的图检索」下限。
 
-范围：本阶段只注册规则基线与检索对照。Agent 及其两组消融
-（agent / agent_noreflect / agent_norules）依赖 `backend.app.agent`，
-随 w3 的 Agent 实现一并引入，避免在模块尚不存在时注册不可运行的系统。
+消融（文档 9.3）：
+  * agent_noreflect —— 去掉反思节点；
+  * agent_norules   —— 把规则推理换成纯图检索链（`reasoning/graph_only.py`）。
 """
 
 from __future__ import annotations
@@ -55,6 +55,38 @@ def _run_rule(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _run_agent(store: GraphStore, q: dict[str, Any], *,
+               use_reflection: bool = True, use_rules: bool = True) -> dict[str, Any]:
+    from ..agent import graph as agent_graph
+
+    run = agent_graph.run(store, question=q["question"], model=q.get("model"),
+                          code=q.get("code"), symptom=q.get("symptom"),
+                          use_reflection=use_reflection, use_rules=use_rules)
+    d = run.diagnosis
+    covered = [v for v in (run.coverage or {}).values() if v == "covered"]
+    return {
+        "answer": run.answer,
+        "faultCodes": [f["code"] for f in d.faults if f.get("code")],
+        "solutionNames": [s["name"] for s in d.solutions],
+        "triples": [[t[0], t[1], t[2]] for t in (e["triple"] for e in d.evidence if len(e["triple"]) == 3)],
+        "claims": d.claims,
+        "latencyMs": 0,
+        # 上下文完整度与工具效率：D/E 组的退化往往体现在这两项而不是准确率上
+        "coverage": round(len(covered) / 5, 4) if run.coverage else None,
+        "toolCalls": len(run.tool_results),
+        "reflectionRounds": len(run.reflections),
+        "policies": d.policies,
+    }
+
+
+def _run_agent_noreflect(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
+    return _run_agent(store, q, use_reflection=False)
+
+
+def _run_agent_norules(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
+    return _run_agent(store, q, use_rules=False)
+
+
 def _nbrs(store: GraphStore, node_id: str, rel: str, direction: str = "out", limit: int = 50):
     """store.neighbors 返回 (edge, node)；统一成 (node, props)，并按单关系传参。"""
     return [(node, edge.props) for edge, node in store.neighbors(node_id, [rel], direction, limit)]
@@ -94,6 +126,10 @@ def _run_rag(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
 
 SYSTEMS = {
     "rule": _run_rule,
+    "agent": _run_agent,
+    # 消融 D / E（文档 9.3）
+    "agent_noreflect": _run_agent_noreflect,
+    "agent_norules": _run_agent_norules,
     "rag": _run_rag,
 }
 
@@ -155,7 +191,7 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
 def main() -> None:
     parser = argparse.ArgumentParser(description="运行评测")
     parser.add_argument("--system", default="rule", choices=list(SYSTEMS))
-    parser.add_argument("--all", action="store_true", help="跑当前可用系统（rule / rag）")
+    parser.add_argument("--all", action="store_true", help="按文档 9.3 跑全部五组系统")
     parser.add_argument("--repeat", type=int, default=1, help="每系统重复次数（文档要求 3）")
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--questions", type=Path, default=None)

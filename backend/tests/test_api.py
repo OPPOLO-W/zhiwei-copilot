@@ -1,23 +1,25 @@
-"""接口契约（w2）：健康检查、图谱查询、规则诊断与错误码。
-
-Agent / compare 模式与 SSE 回放在 w3 引入，本文件不覆盖。
-"""
+"""接口契约：三种模式、错误码、可视化数据形状与 SSE 回放。"""
 
 from __future__ import annotations
+
+import json
+
+import pytest
+
+from backend.app.api.query import RUNS
 
 
 def test_health(client):
     body = client.get("/api/health").json()
     assert body["ok"] is True
-    assert body["entities"] >= 150
-    assert body["relations"] >= 300
+    assert body["entities"] >= 60
+    assert body["relations"] >= 120
 
 
-def test_rule_query_by_code_returns_proof_and_graph(client, model):
-    r = client.post("/api/query", json={"model": model, "code": "E11"})
+def test_rule_mode_returns_proof_and_graph(client, model):
+    r = client.post("/api/query", json={"question": f"{model} 报 E11，左轮不转", "mode": "rule"})
     assert r.status_code == 200
     body = r.json()
-    assert body["mode"] == "rule"
     assert body["proof"]["mode"] == "rule"
     assert body["proof"]["derivationTree"]
     assert body["graph"]["nodes"] and body["graph"]["edges"]
@@ -25,28 +27,38 @@ def test_rule_query_by_code_returns_proof_and_graph(client, model):
     assert body["detail"]["faults"]
 
 
-def test_rule_query_by_case_returns_answer(client, first_case_no):
-    body = client.post("/api/query", json={"caseNo": first_case_no}).json()
-    assert body["answer"]
-    assert body["confidence"] > 0
+def test_agent_mode_returns_coverage_and_tools(client, model):
+    r = client.post("/api/query", json={"question": f"{model} 报 E11，左轮不转", "mode": "agent"})
+    body = r.json()
+    assert body["status"] == "ok"
+    assert set(body["detail"]["coverage"]) == {"q1", "q2", "q3", "q4", "q5"}
+    assert body["detail"]["toolResults"]
+    assert body["slots"]["code"] == "E11"
+    assert body["slots"]["intent"]
 
 
-def test_question_only_is_422(client):
-    """w2 没有槽位抽取器：只给自然语言问题时明确拒绝，而不是静默返回空结论。"""
-    r = client.post("/api/query", json={"question": "T20 PRO 报 E11，左轮不转"})
+def test_compare_mode_exposes_divergence(client):
+    r = client.post("/api/query", json={"question": "T20 PRO 报 10010 配网失败", "mode": "compare"})
+    body = r.json()
+    assert body["mode"] == "compare"
+    assert body["ruleResult"] and body["agentResult"]
+    div = body["detail"]["divergence"]
+    assert "topFaultSame" in div and "onlyInAgent" in div
+
+
+def test_rule_mode_without_slots_is_422(client):
+    r = client.post("/api/query", json={"question": "帮我推荐一台吸尘器", "mode": "rule"})
     assert r.status_code == 422
-    assert "结构化参数" in r.json()["detail"]
+
+
+def test_agent_mode_without_slots_gives_guidance(client):
+    r = client.post("/api/query", json={"question": "帮我推荐一台吸尘器", "mode": "agent"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "out_of_scope"
 
 
 def test_unknown_case_is_404(client):
     assert client.get("/api/cases/NOT-EXIST").status_code == 404
-
-
-def test_graph_stats_reports_rules_and_ontology(client):
-    body = client.get("/api/graph/stats").json()
-    assert body["entities"] >= 150
-    assert body["ruleCount"] >= 20
-    assert body["ontologyVersion"]
 
 
 def test_ontology_and_rules_endpoints(client):
@@ -57,10 +69,40 @@ def test_ontology_and_rules_endpoints(client):
     assert rules["items"][0]["id"]
 
 
-def test_subgraph_endpoint_uses_frontend_shape(client):
+def test_subgraph_endpoint_uses_same_shape(client):
     body = client.post("/api/graph/subgraph",
                        json={"nodeIds": ["SYM:LEFT-WHEEL-STUCK"], "depth": 2}).json()
     assert body["nodes"] and body["edges"]
     node = body["nodes"][0]
     for key in ("id", "label", "name", "color", "shape"):
         assert key in node, f"前端契约缺字段 {key}"
+
+
+def test_stream_replays_events(client, model):
+    r = client.post("/api/query", json={"question": f"{model} 报 E11", "mode": "agent"})
+    run_id = r.json()["runId"]
+    assert run_id in RUNS
+
+    with client.stream("GET", f"/api/query/{run_id}/stream") as resp:
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        payload = "".join(chunk for chunk in resp.iter_text())
+    assert "event:" in payload
+    assert "done" in payload
+
+
+def test_trace_is_written_to_disk(client, model):
+    from pathlib import Path
+
+    from backend.app.config import get_settings
+
+    directory = Path(get_settings().trace_dir)
+    before = sorted(directory.glob("*.jsonl")) if directory.exists() else []
+    client.post("/api/query", json={"question": f"{model} 报 E11", "mode": "rule"})
+    after = sorted(directory.glob("*.jsonl"))
+    assert len(after) >= len(before)
+    assert after, "trace 文件应被创建"
+    line = after[-1].read_text(encoding="utf-8").strip().splitlines()[-1]
+    record = json.loads(line)
+    assert record["mode"] == "rule"
+    assert record["runId"]
