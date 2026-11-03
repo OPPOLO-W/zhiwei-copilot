@@ -1,0 +1,604 @@
+# 官方 FAQ 案例审核台账
+#
+# 流程（开发文档 5.3）：抽取候选 → 人工定论（本文件）→ accepted 才进图
+# 来源：data/extracted/candidates.jsonl 中 extractor=faq/case 的 58 条，
+#       原文与 URL 均来自官网 T20 PRO 常见问题页，evidence 为逐字引用。
+#
+# kind 判定口径
+#   troubleshoot  有「现象 → 处置」结构，可对齐本体症状与方案，是真正的案例卡
+#   maintenance   无现象但有可对齐的保养/更换动作（CLEAN-* / REPLACE-*），作处置卡
+#   usage         纯功能设置/使用教程，既无现象也无处置，已有 Document 节点承载，不进 Case 层
+#
+# decision 取值：accepted（进图）/ rejected（不进图，理由写 note）
+# symptom / solution 必须引用种子中真实存在的 code，写 null 表示不对齐。
+# 不对齐比错对齐好：一条错边会污染推理链，缺一条边只会少一条证据。
+
+meta:
+  product: T20 PRO
+  source: data/extracted/candidates.jsonl
+  extractor: faq/case
+  reviewedAt: "2026-10-29"
+  reviewer: zhiwei
+  rule: 只有能对齐本体症状或方案的官方 FAQ 才进 Case 层；纯教程留在 Document 层
+
+cases:
+  - caseNo: FAQ-15799
+    docId: DOC:FAQ-15799
+    title: "如何正确下载ECOVACS HOME APP？"
+    stepCount: 2
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "APP 下载步骤，无现象无处置，Document 层已承载"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15800
+    docId: DOC:FAQ-15800
+    title: "如何正确登录ECOVACS HOME APP？"
+    stepCount: 3
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "APP 登录方式说明，属功能使用教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15801
+    docId: DOC:FAQ-15801
+    title: "如何正确给机器人充电？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "充电操作步骤，非故障现象"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15802
+    docId: DOC:FAQ-15802
+    title: "如何正确安装机器人？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "整机安装步骤，非故障现象"
+    autoHint: {"symptoms": [], "solutions": ["CLEAN-SIDE-BRUSH", "REPLACE-SIDE-BRUSH"]}
+  - caseNo: FAQ-15803
+    docId: DOC:FAQ-15803
+    title: "如何正确使用OK YIKO语音助手？"
+    stepCount: 2
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "语音助手技能清单，属功能说明"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15804
+    docId: DOC:FAQ-15804
+    title: "如何使用机器人二维码或极简版小程共享功能 ？"
+    stepCount: 2
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "设备共享操作，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15805
+    docId: DOC:FAQ-15805
+    title: "如何正确拆卸/清理/安装边刷？"
+    stepCount: 4
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: CLEAN-SIDE-BRUSH
+    note: "边刷拆装清理步骤，对应清理边刷方案"
+    autoHint: {"symptoms": [], "solutions": ["CLEAN-SIDE-BRUSH", "REPLACE-SIDE-BRUSH"]}
+  - caseNo: FAQ-15806
+    docId: DOC:FAQ-15806
+    title: "如何正确拆卸/清理/安装尘盒？"
+    stepCount: 1
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: RESEAT-DUST-BOX
+    note: "尘盒拆装清理，落脚在重新装配到位"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-DUST-BOX"]}
+  - caseNo: FAQ-15807
+    docId: DOC:FAQ-15807
+    title: "如何正确拆卸/清理/安装滚刷？"
+    stepCount: 4
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: CLEAN-MAIN-BRUSH
+    note: "滚刷拆装清理步骤，对应清理主刷方案"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15808
+    docId: DOC:FAQ-15808
+    title: "OKYIKO语音助手无法唤醒，唤醒后机器不执行或延迟执行？"
+    stepCount: 1
+    kind: troubleshoot
+    decision: accepted
+    symptom: null
+    solution: RECONFIGURE-WIFI
+    note: "语音助手无法唤醒；本体缺该症状，只挂处置：恢复出厂后重新配网"
+    autoHint: {"symptoms": [], "solutions": ["RECONFIGURE-WIFI", "UPDATE-FIRMWARE"]}
+  - caseNo: FAQ-15809
+    docId: DOC:FAQ-15809
+    title: "机器人充不进电/无法充电如何处理？"
+    stepCount: 5
+    kind: troubleshoot
+    decision: accepted
+    symptom: NOT-CHARGING
+    solution: CLEAN-CONTACT
+    note: "充不进电；官方处置为擦拭充电电极片，精确对应清洁充电触点"
+    autoHint: {"symptoms": ["NOT-CHARGING"], "solutions": []}
+  - caseNo: FAQ-15890
+    docId: DOC:FAQ-15890
+    title: "未设置定时预约，却在固定或不固定时间自动出来工作，如何处理？"
+    stepCount: 3
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "定时自启动属断点续扫功能行为，非故障，且本体无对应症状"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15891
+    docId: DOC:FAQ-15891
+    title: "机器人固件版本升级，如何处理？"
+    stepCount: 4
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: UPDATE-FIRMWARE
+    note: "固件升级操作；作为升级固件方案的逐字依据"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-FIRMWARE", "RETRY-UPGRADE"]}
+  - caseNo: FAQ-15892
+    docId: DOC:FAQ-15892
+    title: "机器人出现地图混乱/叠图，如何处理？"
+    stepCount: 1
+    kind: troubleshoot
+    decision: accepted
+    symptom: null
+    solution: RESET-MAP
+    note: "地图混乱/叠图；与本体「地图丢失」不等价，故不挂症状，只挂重建地图"
+    autoHint: {"symptoms": [], "solutions": ["RESET-MAP"]}
+  - caseNo: FAQ-15893
+    docId: DOC:FAQ-15893
+    title: "配网失败/无法连接/app无法上网/无法加入网络，如何处理？"
+    stepCount: 9
+    kind: troubleshoot
+    decision: accepted
+    symptom: PAIRING-FAILED
+    solution: RECONFIGURE-WIFI
+    note: "九步配网排障，症状与处置均精确对齐"
+    autoHint: {"symptoms": ["PAIRING-FAILED"], "solutions": ["RECONFIGURE-WIFI", "ADJUST-ROUTER", "UPDATE-APP"]}
+  - caseNo: FAQ-15894
+    docId: DOC:FAQ-15894
+    title: "清洁槽内污水无法回收/污水箱没水，报污水箱满，如何处理？"
+    stepCount: 5
+    kind: troubleshoot
+    decision: accepted
+    symptom: SEWAGE-FULL
+    solution: EMPTY-SEWAGE-TANK
+    note: "清洁槽污水无法回收、报污水箱满；对应清空污水箱"
+    autoHint: {"symptoms": ["SEWAGE-FULL"], "solutions": ["EMPTY-SEWAGE-TANK"]}
+  - caseNo: FAQ-15897
+    docId: DOC:FAQ-15897
+    title: "如何正确连接小爱音箱？"
+    stepCount: 9
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "第三方音箱连接配置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15898
+    docId: DOC:FAQ-15898
+    title: "机器人如何与天猫精灵的连接？"
+    stepCount: 12
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "天猫精灵配网流程，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15899
+    docId: DOC:FAQ-15899
+    title: "如何正确安装缓释银离子（选配）？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "选配银离子模块安装，非故障；自动建议的 RESEAT-WATER-TANK 为误配"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK"]}
+  - caseNo: FAQ-15900
+    docId: DOC:FAQ-15900
+    title: "机器人提示：轻拍D-ToF组件如何处理？"
+    stepCount: 1
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "D-ToF 组件轻拍提示，本体无导航组件类症状，处置「关机重启」也无对应方案"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15901
+    docId: DOC:FAQ-15901
+    title: "App提示：主机与基站断开连接，请检查/基站无法控制主机"
+    stepCount: 6
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "主机与基站失联；本体缺「基站通信断开」症状，硬连 PAIRING-FAILED 会把配网故障与基站通信故障混淆"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-FIRMWARE"]}
+  - caseNo: FAQ-15902
+    docId: DOC:FAQ-15902
+    title: "机器人固件版本升级失败，如何处理？"
+    stepCount: 4
+    kind: troubleshoot
+    decision: accepted
+    symptom: UPGRADE-FAILED
+    solution: RETRY-UPGRADE
+    note: "固件升级失败，处置为重试升级，精确对齐"
+    autoHint: {"symptoms": ["UPGRADE-FAILED"], "solutions": ["UPDATE-FIRMWARE", "RETRY-UPGRADE"]}
+  - caseNo: FAQ-15903
+    docId: DOC:FAQ-15903
+    title: "ECOVACS HOME APP和机器人连接后离线如何处理?"
+    stepCount: 3
+    kind: troubleshoot
+    decision: accepted
+    symptom: FREQUENT-OFFLINE
+    solution: ADJUST-ROUTER
+    note: "连接后离线；处置覆盖多路由/Mesh 场景，对应调整路由器设置"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15904
+    docId: DOC:FAQ-15904
+    title: "基站清洁槽内有脏污，如何使用自清洁功能来清理？"
+    stepCount: 6
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: EMPTY-SEWAGE-TANK
+    note: "基站清洁槽自清洁，实际动作是取出污水箱倾倒清洗"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK", "EMPTY-SEWAGE-TANK"]}
+  - caseNo: FAQ-15905
+    docId: DOC:FAQ-15905
+    title: "如何正确拆卸拖布支架及拖布清理？"
+    stepCount: 6
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: RESEAT-MOP-PLATE
+    note: "拖布支架拆装，落脚在「听到咔嗒声表示安装到位」"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-MOP-PLATE"]}
+  - caseNo: FAQ-15906
+    docId: DOC:FAQ-15906
+    title: "如何使用OZMO Turbo旋转加压擦地系统？"
+    stepCount: 5
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "旋转加压擦地系统使用说明，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK", "RESEAT-MOP-PLATE"]}
+  - caseNo: FAQ-15907
+    docId: DOC:FAQ-15907
+    title: "如何快速建立地图？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "快速建图操作，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["RESET-MAP"]}
+  - caseNo: FAQ-15908
+    docId: DOC:FAQ-15908
+    title: "如何给机器人连接网络？"
+    stepCount: 9
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "配网操作教程；配网排障已由 FAQ-15893 更完整覆盖，避免同一知识两条案例"
+    autoHint: {"symptoms": ["PAIRING-FAILED"], "solutions": ["ADJUST-ROUTER"]}
+  - caseNo: FAQ-15909
+    docId: DOC:FAQ-15909
+    title: "如何使用机器人童锁功能？"
+    stepCount: 1
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "童锁开关设置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15910
+    docId: DOC:FAQ-15910
+    title: "机器人工作时出现实清扫时路线乱如何处理？"
+    stepCount: 5
+    kind: troubleshoot
+    decision: accepted
+    symptom: RANDOM-WALK
+    solution: CLEAN-WHEEL
+    note: "清扫路线乱；官方处置为擦拭驱动轮脏污，对应清理轮组"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK"]}
+  - caseNo: FAQ-15911
+    docId: DOC:FAQ-15911
+    title: "如何打开自动集尘仓/更换集尘袋？"
+    stepCount: 3
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: REPLACE-DUST-BAG
+    note: "集尘袋更换步骤，对应更换尘袋"
+    autoHint: {"symptoms": [], "solutions": ["REPLACE-DUST-BAG"]}
+  - caseNo: FAQ-15912
+    docId: DOC:FAQ-15912
+    title: "如何正确使用机器人Wi-Fi管理功能？"
+    stepCount: 2
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "Wi-Fi 管理功能说明，属功能教程"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15913
+    docId: DOC:FAQ-15913
+    title: "机器人不执行智能断点续扫如何处理？"
+    stepCount: 3
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "断点续扫不执行，本体无对应症状，原文亦无实质处置"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15914
+    docId: DOC:FAQ-15914
+    title: "机器人找到基站后上不去如何处理？"
+    stepCount: 4
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "回充上不去；本体缺「回充失败」症状，处置为人工辅助回充，无对应方案"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK"]}
+  - caseNo: FAQ-15915
+    docId: DOC:FAQ-15915
+    title: "机器人无法返回基站，如何处理？"
+    stepCount: 6
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "无法返回基站；同上，本体缺回充类症状"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15916
+    docId: DOC:FAQ-15916
+    title: "机器人出现漏扫情况，如何处理？"
+    stepCount: 3
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "漏扫，原因多为环境摆放，非机器故障，本体无对应症状"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15917
+    docId: DOC:FAQ-15917
+    title: "运行困难，请检查驱动轮如何处理？"
+    stepCount: 3
+    kind: troubleshoot
+    decision: accepted
+    symptom: null
+    solution: CLEAN-WHEEL
+    note: "运行困难查驱动轮；本体左右轮分列，原文不区分左右，故不挂症状只挂清理轮组"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15918
+    docId: DOC:FAQ-15918
+    title: "如何使用区域/家居/自定义清洁/省心模式？"
+    stepCount: 9
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "各清洁模式差异说明，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["RESET-MAP"]}
+  - caseNo: FAQ-15919
+    docId: DOC:FAQ-15919
+    title: "提示地宝被阻挡/清洁被终止，如何处理？"
+    stepCount: 2
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "原文明确「并不是机器性能故障」，是区域记忆机制，不应作故障案例"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK", "EMPTY-SEWAGE-TANK"]}
+  - caseNo: FAQ-15920
+    docId: DOC:FAQ-15920
+    title: "如何设置机器人拖布烘干时长？"
+    stepCount: 1
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "烘干时长设置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15921
+    docId: DOC:FAQ-15921
+    title: "如何调整机器人返回基站洗拖布的间隔时间？"
+    stepCount: 1
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "回洗间隔设置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-15922
+    docId: DOC:FAQ-15922
+    title: "机器人驱动轮被缠绕或表面有脏污，如何清理？"
+    stepCount: 3
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: CLEAN-WHEEL
+    note: "驱动轮缠绕/脏污清理，直接对应清理轮组缠绕物"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15924
+    docId: DOC:FAQ-15924
+    title: "如何正确清理污水箱及清水箱？"
+    stepCount: 2
+    kind: maintenance
+    decision: accepted
+    symptom: null
+    solution: EMPTY-SEWAGE-TANK
+    note: "污水箱/清水箱清理；主要动作是清洗污水箱，清水箱以复位归置为主"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK", "EMPTY-SEWAGE-TANK"]}
+  - caseNo: FAQ-15925
+    docId: DOC:FAQ-15925
+    title: "如何正确使用机器人个性化语音功能？"
+    stepCount: 1
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "个性化语音设置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15926
+    docId: DOC:FAQ-15926
+    title: "如何使用家居装修功能？"
+    stepCount: 1
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "家居装修功能，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["RESET-MAP"]}
+  - caseNo: FAQ-15927
+    docId: DOC:FAQ-15927
+    title: "如何正确使用地图管理功能？"
+    stepCount: 1
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "地图管理功能说明，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["RESET-MAP"]}
+  - caseNo: FAQ-15928
+    docId: DOC:FAQ-15928
+    title: "机器人出现下视异常，如何处理？"
+    stepCount: 2
+    kind: troubleshoot
+    decision: accepted
+    symptom: null
+    solution: CLEAN-CLIFF-SENSOR
+    note: "下视异常提示，处置为擦拭底部下视传感器，精确对应清洁下视传感器"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15929
+    docId: DOC:FAQ-15929
+    title: "如何正确切换机器人的清洁模式？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "清洁模式切换说明；自动建议的 MAIN-BRUSH-STOPPED 为误配"
+    autoHint: {"symptoms": ["MAIN-BRUSH-STOPPED"], "solutions": ["CLEAN-SIDE-BRUSH", "REPLACE-SIDE-BRUSH"]}
+  - caseNo: FAQ-15931
+    docId: DOC:FAQ-15931
+    title: "机器人出现拖布支架时转时不转，或拖布支架不转，如何处理？"
+    stepCount: 5
+    kind: troubleshoot
+    decision: accepted
+    symptom: null
+    solution: RESEAT-MOP-PLATE
+    note: "拖布支架不转；先查清洁模式，无效则拆清缠绕物后重装，对应重新安装拖布支架"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-MOP-PLATE"]}
+  - caseNo: FAQ-15932
+    docId: DOC:FAQ-15932
+    title: "如何使用基站功能？"
+    stepCount: 8
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "基站功能总览，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK", "EMPTY-SEWAGE-TANK"]}
+  - caseNo: FAQ-15939
+    docId: DOC:FAQ-15939
+    title: "如何正确设置机器人预约功能？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "预约功能设置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-15940
+    docId: DOC:FAQ-15940
+    title: "如何使用定制清洁/清扫顺序功能？"
+    stepCount: 4
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "清洁顺序设置，属功能教程"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-16113
+    docId: DOC:FAQ-16113
+    title: "机器人在自动适应地毯模式，不抬升或撞飞地垫等，如何处理？"
+    stepCount: 2
+    kind: troubleshoot
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "地毯模式不抬升，本体无地毯识别类症状，处置为检查拖布盘安装，与故障语义不符"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-MOP-PLATE"]}
+  - caseNo: FAQ-16117
+    docId: DOC:FAQ-16117
+    title: "在基站清洁抹布时不出热水，如何处理？"
+    stepCount: 5
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "不出热水主要是热水净洗开关/水温逻辑，属功能设置；与本体「不出水」不等价"
+    autoHint: {"symptoms": [], "solutions": ["RESEAT-WATER-TANK"]}
+  - caseNo: FAQ-16118
+    docId: DOC:FAQ-16118
+    title: "集尘失败，未检测到集尘袋或尘袋已满，如何处理？"
+    stepCount: 6
+    kind: troubleshoot
+    decision: accepted
+    symptom: DUST-BAG-FULL
+    solution: REPLACE-DUST-BAG
+    note: "集尘失败、未检测到尘袋或尘袋已满，症状与处置精确对齐"
+    autoHint: {"symptoms": ["DUST-BAG-FULL"], "solutions": ["REPLACE-DUST-BAG", "UPDATE-FIRMWARE"]}
+  - caseNo: FAQ-16621
+    docId: DOC:FAQ-16621
+    title: "机器人与小度音箱连接及解绑"
+    stepCount: 6
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "小度音箱连接与解绑，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
+  - caseNo: FAQ-16675
+    docId: DOC:FAQ-16675
+    title: "器人提示“抹布支架缠绕 ”/未完整安装 如何处理？"
+    stepCount: 4
+    kind: troubleshoot
+    decision: accepted
+    symptom: MOP-PLATE-LOOSE
+    solution: RESEAT-MOP-PLATE
+    note: "抹布支架缠绕/未完整安装，症状与处置精确对齐"
+    autoHint: {"symptoms": [], "solutions": []}
+  - caseNo: FAQ-17661
+    docId: DOC:FAQ-17661
+    title: "机器人与绿米APP的连接及解绑"
+    stepCount: 3
+    kind: usage
+    decision: rejected
+    symptom: null
+    solution: null
+    note: "绿米 APP 连接与解绑，属功能教程"
+    autoHint: {"symptoms": [], "solutions": ["UPDATE-APP"]}
