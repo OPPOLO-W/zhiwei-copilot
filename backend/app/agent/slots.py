@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..kg import queries as Q
+from ..kg.model import Node
 from ..kg.store import GraphStore
 
 MODEL_RE = re.compile(r"[Tt]\s?(\d{2})\s*(PRO|Pro|pro|TURBO|Turbo|turbo)?")
@@ -38,6 +39,9 @@ class Slots:
     intent: str = "troubleshoot"
     safety_hint: bool = False
     replace_intent: bool = False
+    # 用户明确提到、但图谱未收录的型号原文。与 model=None（压根没提型号）区分开：
+    # 前者必须走 unknown_model 降级，后者才允许按错误码/症状单独检索。
+    model_unknown: str | None = None
     constraints: dict[str, Any] = field(default_factory=dict)
     unresolved: list[str] = field(default_factory=list)
 
@@ -52,9 +56,23 @@ class Slots:
             "intent": self.intent,
             "safetyHint": self.safety_hint,
             "replaceIntent": self.replace_intent,
+            "unknownModel": self.model_unknown,
             "constraints": self.constraints,
             "unresolved": self.unresolved,
         }
+
+
+def _resolve_model_prefix(store: GraphStore, candidate: str) -> Node | None:
+    """补全省略后缀的型号（T20 → T20 PRO）。
+
+    只在唯一命中时补全；命中 0 个或 ≥2 个都返回 None，避免猜错型号。
+    """
+    prefix = candidate.upper()
+    hits = [
+        n for n in store.nodes("ProductModel")
+        if str(n.props.get("modelCode", "")).upper().startswith(prefix)
+    ]
+    return hits[0] if len(hits) == 1 else None
 
 
 def extract_slots(store: GraphStore, question: str) -> Slots:
@@ -64,10 +82,14 @@ def extract_slots(store: GraphStore, question: str) -> Slots:
     if m:
         suffix = (m.group(2) or "").upper()
         candidate = f"T{m.group(1)}" + (f" {suffix}" if suffix else "")
-        node = Q.resolve_model(store, candidate)
+        node = Q.resolve_model(store, candidate) or _resolve_model_prefix(store, candidate)
         if node:
             slots.model = node.props.get("modelCode")
         else:
+            # 保留原文而不是置 None：下游据此走 unknown_model 降级，
+            # 否则「T30 PRO 的 E11」会被静默当成「T20 PRO 的 E11」作答。
+            slots.model = candidate
+            slots.model_unknown = candidate
             slots.unresolved.append(f"型号 {candidate} 不在图谱范围内")
 
     c = CODE_RE.search(question.upper().replace(" ", ""))

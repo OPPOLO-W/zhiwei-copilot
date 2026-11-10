@@ -68,7 +68,9 @@ def run(
     # ---------- intake ----------
     slots = extract_slots(store, question or "")
     slots.case_no = case_no or slots.case_no
-    slots.model = model or slots.model
+    if model:  # 结构化参数优先，覆盖问题里抽出的型号，同时清掉「未收录」标记
+        slots.model = model
+        slots.model_unknown = None
     slots.code = code or slots.code
     slots.symptom = symptom or slots.symptom
     step("intake", slots=slots.to_dict(), safetyHint=slots.safety_hint)
@@ -84,7 +86,7 @@ def run(
     plan: list[dict[str, Any]] = [{"tool": diag_tool, "args": {
         "model": slots.model, "code": slots.code, "symptom": slots.symptom, "case_no": slots.case_no,
     }}]
-    if slots.model:
+    if slots.model and not slots.model_unknown:
         plan.append({"tool": "search_similar_cases", "args": {
             # 首次检索直接覆盖一年：售后案例密度低，30/90 天窗口经常为空，
             # 空结果再触发一轮反思纯属浪费一次工具调用。
@@ -142,6 +144,7 @@ def run(
             answer=diagnosis.answer,
             status="degraded",
             extra={"compatibility": [], "similarCases": [], "issues": [],
+                   "unknownModel": slots.model_unknown,
                    "reason": sorted(set(diagnosis.policies) & LOOKUP_POLICIES)[0]},
         )
 
@@ -222,7 +225,8 @@ def run(
         trace=trace,
         answer=answer,
         status="ok",
-        extra={"compatibility": compat, "similarCases": similar[:5], "issues": issues},
+        extra={"compatibility": compat, "similarCases": similar[:5], "issues": issues,
+               "unknownModel": slots.model_unknown},
     )
 
 

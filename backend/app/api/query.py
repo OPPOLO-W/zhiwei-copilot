@@ -80,7 +80,10 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
 
     try:
         if req.mode == "agent":
-            run = agent_graph.run(store, question=req.question, **slots)
+            # 传原始请求字段而不是预抽结果：Agent 会自己抽槽位，
+            # 二次注入会让「型号未收录」标记被当成结构化参数覆盖掉。
+            run = agent_graph.run(store, question=req.question, model=req.model,
+                                  code=req.code, symptom=req.symptom, case_no=req.case_no)
             d = run.diagnosis
             payload = QueryResponse(
                 runId=run_id, mode="agent", status=run.status, answer=run.answer,
@@ -105,7 +108,8 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             rule_d = diagnose(store, case_no=slots["case_no"], model=slots["model"],
                               code=slots["code"], symptom=slots["symptom"],
                               check_results=req.check_results)
-            run = agent_graph.run(store, question=req.question, **slots)
+            run = agent_graph.run(store, question=req.question, model=req.model,
+                                  code=req.code, symptom=req.symptom, case_no=req.case_no)
             agent_d = run.diagnosis
             payload = QueryResponse(
                 runId=run_id, mode="compare", status="ok",
@@ -143,7 +147,7 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     payload.latencyMs = int((time.perf_counter() - started) * 1000)
-    write_trace(run_id, {"question": req.question, "slots": slots, "mode": req.mode,
+    write_trace(run_id, {"question": req.question, "slots": payload.slots, "mode": req.mode,
                          "latencyMs": payload.latencyMs, "status": payload.status,
                          "trace": payload.trace})
     _remember(run_id, payload.model_dump(), events)

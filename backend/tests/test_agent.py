@@ -124,6 +124,43 @@ def test_ablation_without_rules_drops_safety_policy(store, model):
     assert "⚠️" not in ablated.answer
 
 
+def test_unknown_model_is_not_answered_with_other_model(store):
+    """用户指定了未收录的型号时，不得拿别的型号的结论冒充。
+
+    回归用例：修复前 `extract_slots` 把未收录型号置为 None，
+    导致「T30 PRO 报 E11」被当成「E11」单独检索，返回 T20 PRO 的故障链，
+    且 warnings 为空、status=ok，用户无从察觉型号被悄悄替换。
+    """
+    run = agent_graph.run(store, question="T30 PRO 报 E11")
+
+    assert run.status == "degraded"
+    assert "unknown_model" in run.diagnosis.policies
+    assert run.diagnosis.faults == [], "型号未收录时不应给出任何故障结论"
+    assert "未收录" in run.answer and "T30 PRO" in run.answer
+    assert run.slots["unknownModel"] == "T30 PRO"
+    # 型号都错了，再检索同型号案例纯属浪费工具调用
+    assert [t["tool"] for t in run.tool_results] == ["run_rules"]
+
+
+def test_model_suffix_omission_is_completed(store, model):
+    """省略后缀的型号（T20）应补全为 T20 PRO，而不是判为未收录。"""
+    prefix = model.split()[0]
+    slots = extract_slots(store, f"{prefix} 报 E11，左轮不转")
+
+    assert slots.model == model
+    assert slots.model_unknown is None
+    assert slots.unresolved == []
+
+
+def test_structured_model_param_overrides_question(store, model):
+    """结构化参数优先：问题里写错型号、参数里给对，应以参数为准。"""
+    run = agent_graph.run(store, question="T30 PRO 报 E11", model=model, code="E11")
+
+    assert run.status == "ok"
+    assert run.slots["unknownModel"] is None
+    assert run.diagnosis.faults, "显式传入有效型号后应正常作答"
+
+
 # ---------------------------------------------------------------------------
 # 真实官方 FAQ 案例（保养/操作类，无故障症状）
 # ---------------------------------------------------------------------------
