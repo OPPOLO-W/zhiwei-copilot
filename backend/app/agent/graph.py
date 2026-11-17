@@ -1,7 +1,7 @@
 """RefKG-lite 工作流编排。
 
 对应论文四段式：Query Decoupling → LLM-Driven KG Exploration →
-Inference with Knowledge Reconstruction（+ 反思重试）。
+Inference with Knowledge Reconstruction（+ 覆盖度重试）。
 
 工程实现取舍
 ------------
@@ -51,7 +51,8 @@ def run(
 ) -> AgentRun:
     """use_reflection / use_rules 是消融开关（文档 9.3 的 D / E 组），默认全开。
 
-    * use_reflection=False：跳过 reflect 节点，即不再按子问题覆盖度补检索；
+    * use_reflection=False：跳过 retry 节点，即不再按子问题覆盖度补检索
+      （该节点是查表重试，不是语义反思；真正的反思只在 llm_agent 里）；
     * use_rules=False：把 `run_rules` 换成 `retrieve_chain`，只走图检索链，
       不带规则推理与规则派生的策略（网络优先、安全拦截、检查排序）。
     """
@@ -89,7 +90,7 @@ def run(
     if slots.model and not slots.model_unknown:
         plan.append({"tool": "search_similar_cases", "args": {
             # 首次检索直接覆盖一年：售后案例密度低，30/90 天窗口经常为空，
-            # 空结果再触发一轮反思纯属浪费一次工具调用。
+            # 空结果再触发一轮重试纯属浪费一次工具调用。
             "model": slots.model, "symptom": slots.symptom or "", "days": 365,
         }})
     step("plan", actions=[p["tool"] for p in plan])
@@ -127,7 +128,7 @@ def run(
                             code=slots.code, symptom=slots.symptom, question=question)
 
     # 查询落空（跨型号串码 / 未知错误码 / 未知型号）：直接给出可解释结论，
-    # 不做兼容性核查与反思重试，否则会为「查不到」再花两三次工具调用。
+    # 不做兼容性核查与覆盖度重试，否则会为「查不到」再花两三次工具调用。
     if set(diagnosis.policies) & LOOKUP_POLICIES:
         coverage = {qid: "missing" for qid in ("q1", "q2", "q3", "q4", "q5")}
         step("verify", issues=[], policies=diagnosis.policies)
@@ -158,7 +159,8 @@ def run(
                 if r.ok and r.data:
                     compat.append(r.data)
 
-    # ---------- reflect ----------
+    # ---------- retry（覆盖度驱动的查表重试，不是语义反思） ----------
+    # 与 llm_agent 的 reflect 区分：这里不读证据内容，决策空间只有 q2/q3 两条硬编码分支。
     coverage = _coverage(diagnosis, similar)
     reflections: list[dict[str, Any]] = []
     attempted: set[tuple[str, str]] = {(r.tool, str(r.args)) for r in results}
@@ -194,8 +196,11 @@ def run(
             "decision": "retry" if actions else "stop",
             "nextActions": [a["tool"] for a in actions],
         })
-        step("reflect", round=rounds, coverage=dict(coverage),
-             decision=reflections[-1]["decision"], missing=missing + partial)
+        # 这一节点没有 LLM：只是「哪个子问题缺证据 → 查表放宽重试」的启发式。
+        # 节点名为 retry，与 llm_agent 的 reflect（语义反思）在 trace 上可区分。
+        step("retry", round=rounds, coverage=dict(coverage),
+             decision=reflections[-1]["decision"], missing=missing + partial,
+             driver="heuristic")
         if not actions:
             break
         for action in actions:

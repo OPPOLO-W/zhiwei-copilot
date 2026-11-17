@@ -27,7 +27,7 @@ LABELS = {
     "rule": "A rule",
     "rag": "B rag",
     "agent": "C agent",
-    "agent_noreflect": "D w/o reflection",
+    "agent_noreflect": "D w/o retry",
     "agent_norules": "E w/o rules",
 }
 COLORS = {

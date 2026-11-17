@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QueryPanel from "./components/QueryPanel.jsx";
 import AnswerCard from "./components/AnswerCard.jsx";
+import CompareAnswers from "./components/CompareAnswers.jsx";
 import GraphCanvas from "./components/GraphCanvas.jsx";
 import SideTabs from "./components/SideTabs.jsx";
 import Timeline from "./components/Timeline.jsx";
 import { ask, getHealth, getRules } from "./api.js";
 
+// 一条路由 = 一个「链路 + 引擎」的确定组合；后端仍是 (mode, useLlm) 两个参数
+const modeOf = (r) => (r === "rule" ? "rule" : r === "compare" ? "compare" : "agent");
+const llmOf = (r) => r === "agent_llm" || r === "compare";
+
 export default function App() {
-  const [mode, setMode] = useState("agent");
+  const [route, setRoute] = useState("agent_llm");
+  // 对比模式下图谱默认看 Agent 侧，可切到规则侧
+  const [graphSide, setGraphSide] = useState("agent");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -17,54 +24,91 @@ export default function App() {
   const [rules, setRules] = useState(null);
   const [preset, setPreset] = useState("");
 
+
   useEffect(() => {
     getHealth().then(setHealth).catch(() => setHealth({ ok: false }));
     getRules().then(setRules).catch(() => {});
   }, []);
 
+  // 并发守卫用 ref 而不是 loading state：setState 是异步的，
+  // 连续点击时闭包里的 loading 可能仍是旧值，会重复发请求
+  const inflight = useRef(false);
+
   const run = useCallback(
-    async (question, modeOverride) => {
-      const useMode = modeOverride || mode;
+    async (question, routeOverride) => {
+      if (inflight.current) return;
+      inflight.current = true;
+      const r = routeOverride || route;
       setLoading(true);
       setError("");
       setActiveEvidence(null);
       setSelectedNode(null);
       try {
-        const data = await ask({ question, mode: useMode });
+        const data = await ask({ question, mode: modeOf(r), useLlm: llmOf(r) });
         setResult(data);
+        // 每次对比都回到 Agent 侧，避免停留在上一次的规则子图
+        if (modeOf(r) === "compare") setGraphSide("agent");
       } catch (err) {
         setError(err.message || "请求失败");
       } finally {
+        inflight.current = false;
         setLoading(false);
       }
     },
-    [mode]
+    [route]
   );
 
-  // 支持深链演示：/?q=T20 PRO 报 E11&mode=agent 打开即自动诊断
+  // 支持深链演示：/?q=T20 PRO 报 E11&route=agent_llm
+  // 兼容旧链接：?mode=agent&llm=1 会映射到 agent_llm
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get("q");
     const m = params.get("mode");
-    const valid = ["rule", "agent", "compare"];
-    if (m && valid.includes(m)) setMode(m);
+    const r = params.get("route");
+    const l = params.get("llm");
+    const ROUTES_ALL = ["rule", "agent_det", "agent_llm", "compare"];
+    let next;
+    if (ROUTES_ALL.includes(r)) next = r;
+    else if (m === "rule" || m === "compare") next = m;
+    else if (m === "agent") next = l === "1" || l === "true" ? "agent_llm" : "agent_det";
+    if (next) setRoute(next);
     if (q) {
       setPreset(q);
-      run(q, valid.includes(m) ? m : undefined);
+      run(q, next);
     }
     // 只在首屏执行一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const slots = useMemo(() => result?.slots || {}, [result]);
+
+  // 对比模式：图谱区可在「规则链子图 / Agent 链子图」之间切换，
+  // 只显示一侧是之前对比看不出东西的主要原因之一
+  const isCompare = result?.mode === "compare";
+  const shownGraph = isCompare && graphSide === "rule" ? result?.ruleResult?.graph : result?.graph;
+
+  // 两条链共用同一诊断内核，证据子图通常逐节点相同；只有真存在差异时才给切换，
+  // 否则点了没变化反而让人以为界面坏了
+  const graphsDiffer = useMemo(() => {
+    if (!isCompare) return false;
+    const ids = (g) => (g?.nodes || []).map((n) => n.id).sort().join("|");
+    return ids(result?.ruleResult?.graph) !== ids(result?.graph);
+  }, [isCompare, result]);
+
   const nodeDetail = useMemo(() => {
     if (!selectedNode) return null;
-    const node = (result?.graph?.nodes || []).find((n) => n.id === selectedNode.id);
+    const node = (shownGraph?.nodes || []).find((n) => n.id === selectedNode.id);
     return node ? { ...node, ...selectedNode } : null;
-  }, [selectedNode, result]);
+  }, [selectedNode, shownGraph]);
 
-  const graphNodeCount = result?.graph?.nodes?.length || 0;
-  const graphEdgeCount = result?.graph?.edges?.length || 0;
+  const graphNodeCount = shownGraph?.nodes?.length || 0;
+  const graphEdgeCount = shownGraph?.edges?.length || 0;
+
+  // 从 trace 反查本次是否真的走了 LLM：LLM 节点会带 llmSlots / llmDriven / llmAnswer 标记
+  const llmSteps = useMemo(
+    () => (result?.trace || []).filter((s) => s.llmSlots || s.llmDriven || s.llmAnswer).length,
+    [result]
+  );
 
   return (
     <div className="app">
@@ -79,8 +123,13 @@ export default function App() {
             {health?.ok ? `${health.backend} · ${health.entities} 实体 / ${health.relations} 关系` : "图存储未连接"}
           </span>
           <span style={{ color: "var(--text-faint)" }}>
-            {health?.llm ? `LLM ${health.model}` : "确定性模式（未接 LLM）"}
+            {health?.llm ? `LLM 已配置 · ${health.model}` : "未配置 LLM key · 确定性兜底"}
           </span>
+          {result && (
+            <span style={{ color: llmSteps > 0 ? "var(--accent)" : "var(--text-faint)" }}>
+              本次 {llmSteps > 0 ? `LLM 驱动（${llmSteps} 步）` : "确定性"}
+            </span>
+          )}
           <span style={{ color: "var(--text-faint)" }}>
             子图 {graphNodeCount} 节点 / {graphEdgeCount} 边
           </span>
@@ -90,19 +139,60 @@ export default function App() {
       <div className="main">
         <div className="col">
           <QueryPanel
-            mode={mode}
-            setMode={setMode}
+            route={route}
+            setRoute={setRoute}
             onSubmit={run}
             loading={loading}
             slots={slots}
             initial={preset}
           />
-          <AnswerCard result={result} onEvidence={(id) => setActiveEvidence(id)} />
+          {isCompare ? (
+            <CompareAnswers result={result} onEvidence={(id) => setActiveEvidence(id)} />
+          ) : (
+            <AnswerCard result={result} onEvidence={(id) => setActiveEvidence(id)} />
+          )}
         </div>
 
         <div className="col" style={{ position: "relative" }}>
+          {isCompare && graphsDiffer && (
+            <div style={{ position: "absolute", top: 10, left: 12, zIndex: 6 }}>
+              <div className="segmented" title="切换查看哪条链路检索出的子图">
+                <button
+                  className={graphSide === "agent" ? "on" : ""}
+                  onClick={() => setGraphSide("agent")}
+                >
+                  Agent 子图
+                </button>
+                <button
+                  className={graphSide === "rule" ? "on" : ""}
+                  onClick={() => setGraphSide("rule")}
+                >
+                  规则子图
+                </button>
+              </div>
+            </div>
+          )}
+          {isCompare && !graphsDiffer && (
+            <div
+              style={{
+                position: "absolute",
+                top: 12,
+                left: 14,
+                zIndex: 6,
+                fontSize: 10.5,
+                color: "var(--text-faint)",
+                background: "var(--bg-soft)",
+                border: "1px solid var(--line-soft)",
+                borderRadius: 6,
+                padding: "3px 8px",
+              }}
+              title="规则链与 Agent 链共用同一诊断内核，证据子图逐节点相同"
+            >
+              两侧子图相同（同一证据子图）
+            </div>
+          )}
           <GraphCanvas
-            graph={result?.graph}
+            graph={shownGraph}
             highlightEvidenceId={activeEvidence}
             onNodeSelect={setSelectedNode}
           />

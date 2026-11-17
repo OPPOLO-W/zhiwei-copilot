@@ -40,6 +40,17 @@ def _slots_from_request(store: GraphStore, req: QueryRequest) -> dict[str, Any]:
     return {"model": req.model, "code": req.code, "symptom": req.symptom, "case_no": req.case_no}
 
 
+def _run_agent_dispatch(store: GraphStore, req: QueryRequest):
+    """Agent 执行入口：`useLlm` 且已配置 key 时走 LLM 驱动，否则确定性实现。"""
+    if req.use_llm:
+        from ..agent.llm_agent import run_llm
+
+        return run_llm(store, question=req.question, model=req.model, code=req.code,
+                       symptom=req.symptom, case_no=req.case_no)
+    return agent_graph.run(store, question=req.question, model=req.model, code=req.code,
+                           symptom=req.symptom, case_no=req.case_no)
+
+
 def _divergence(rule_d, agent_d) -> dict[str, Any]:
     """compare 模式的核心产物：规则与 Agent 两条链路的差异摘要。"""
 
@@ -82,8 +93,7 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
         if req.mode == "agent":
             # 传原始请求字段而不是预抽结果：Agent 会自己抽槽位，
             # 二次注入会让「型号未收录」标记被当成结构化参数覆盖掉。
-            run = agent_graph.run(store, question=req.question, model=req.model,
-                                  code=req.code, symptom=req.symptom, case_no=req.case_no)
+            run = _run_agent_dispatch(store, req)
             d = run.diagnosis
             payload = QueryResponse(
                 runId=run_id, mode="agent", status=run.status, answer=run.answer,
@@ -108,16 +118,20 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             rule_d = diagnose(store, case_no=slots["case_no"], model=slots["model"],
                               code=slots["code"], symptom=slots["symptom"],
                               check_results=req.check_results)
-            run = agent_graph.run(store, question=req.question, model=req.model,
-                                  code=req.code, symptom=req.symptom, case_no=req.case_no)
+            run = _run_agent_dispatch(store, req)
             agent_d = run.diagnosis
+            # to_dict() 里的 answer 是规则模板；LLM 路径下真实答案只存在 run.answer，
+            # 不覆盖就会导致「对比」两侧答案逐字相同
+            final_answer = run.answer or agent_d.answer
+            agent_payload = agent_d.to_dict()
+            agent_payload["answer"] = final_answer
             payload = QueryResponse(
                 runId=run_id, mode="compare", status="ok",
-                answer=agent_d.answer, confidence=agent_d.confidence,
+                answer=final_answer, confidence=agent_d.confidence,
                 claims=agent_d.claims, warnings=sorted(set(rule_d.warnings + agent_d.warnings)),
                 graph=agent_d.graph, proof={"mode": "hybrid", "derivationTree": rule_d.proof_tree},
                 trace=run.trace, evidence=agent_d.evidence, slots=run.slots,
-                ruleResult=rule_d.to_dict(), agentResult=agent_d.to_dict(),
+                ruleResult=rule_d.to_dict(), agentResult=agent_payload,
                 detail={"coverage": run.coverage, "toolResults": run.tool_results,
                         "reflections": run.reflections,
                         "policies": agent_d.policies,
@@ -178,7 +192,9 @@ def case_context(case_no: str, store: GraphStore = Depends(store_dep)) -> dict[s
 
 
 def _events_from_trace(trace: list[dict[str, Any]], run_id: str) -> list[dict[str, Any]]:
-    mapping = {"decompose": "plan", "act": "tool_call", "reflect": "reflection", "finalize": "done"}
+    # retry = 确定性路径的覆盖度重试；reflect = LLM 路径的语义反思（两者语义不同，不合并）
+    mapping = {"decompose": "plan", "act": "tool_call", "retry": "retry",
+               "reflect": "reflection", "finalize": "done"}
     events: list[dict[str, Any]] = []
     for step in trace:
         node = step.get("node", "")

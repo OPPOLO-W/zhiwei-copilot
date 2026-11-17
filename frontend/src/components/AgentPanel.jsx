@@ -90,7 +90,7 @@ export default function AgentPanel({ detail, trace }) {
         </div>
       )}
 
-      <div className="sec-title">反思轮次</div>
+      <div className="sec-title">重试 / 反思轮次</div>
       {reflections.length ? (
         reflections.map((r) => (
           <div className="reflect" key={r.round}>
@@ -103,7 +103,7 @@ export default function AgentPanel({ detail, trace }) {
         ))
       ) : (
         <div className="empty-hint" style={{ padding: 12 }}>
-          首轮证据已覆盖全部子问题，未触发反思
+          首轮证据已覆盖全部子问题，未触发重试或反思
         </div>
       )}
 

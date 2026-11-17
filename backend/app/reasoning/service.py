@@ -1,6 +1,6 @@
 """诊断服务：事实投影 → 规则推理 → 排序 → 证据与证明子图。
 
-规则模式（mode=rule）完全确定性、不调用 LLM；Agent 模式在此基础上做查询解耦与反思。
+规则模式（mode=rule）完全确定性、不调用 LLM；Agent 模式在此基础上做查询解耦与覆盖度重试。
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ SAFETY_WARNING = (
     "并联系科沃斯官方售后；切勿自行拆解电池或短接保护。"
 )
 DISCLAIMER = "以上判断仅用于辅助排查，最终以官方手册与售后检测为准。"
-# 这些策略表示「查询本身落空」，不是推理结论，Agent 应直接返回而不再反思重试
+# 这些策略表示「查询本身落空」，不是推理结论，Agent 应直接返回而不再重试
 LOOKUP_POLICIES = {"code_not_applicable", "unknown_code", "unknown_model", "unknown_intent"}
 # 用户显式做跨型号比较时的措辞（同一错误码在不同型号下含义可能不同）
 CROSS_MODEL_HINTS = ("含义", "一样吗", "是否一样", "不同型号", "两个型号", "跨型号", "都报", "分别")

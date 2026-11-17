@@ -63,7 +63,7 @@
 <rect x="175" y="410" width="10" height="10" fill="#0f766e"/>
 <text x="190" y="419" font-size="11" fill="#334155">C agent</text>
 <rect x="238" y="410" width="10" height="10" fill="#7c3aed"/>
-<text x="253" y="419" font-size="11" fill="#334155">D w/o reflection</text>
-<rect x="364" y="410" width="10" height="10" fill="#ea580c"/>
-<text x="379" y="419" font-size="11" fill="#334155">E w/o rules</text>
+<text x="253" y="419" font-size="11" fill="#334155">D w/o retry</text>
+<rect x="329" y="410" width="10" height="10" fill="#ea580c"/>
+<text x="344" y="419" font-size="11" fill="#334155">E w/o rules</text>
 </svg>

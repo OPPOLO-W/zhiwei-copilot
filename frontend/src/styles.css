@@ -878,3 +878,70 @@ body {
   z-index: 50;
   backdrop-filter: blur(8px);
 }
+
+/* ---------- 对比模式：双侧结论卡片 ---------- */
+.chain-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed var(--line-soft);
+}
+.chain-summary .same {
+  color: var(--text-faint);
+}
+.chain-summary .diff {
+  color: #b45309;
+  font-weight: 600;
+}
+.chain-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin-bottom: 10px;
+}
+.chain-card:last-child {
+  margin-bottom: 0;
+}
+.chain-more {
+  margin-top: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 10.5px;
+  padding: 0;
+  cursor: pointer;
+}
+.chain-more:hover {
+  text-decoration: underline;
+}
+.chain-head {  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  margin-bottom: 7px;
+}
+.chain-facts {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--line-soft);
+}
+.chain-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.85;
+}
+.chain-row .k {
+  color: var(--text-faint);
+  flex: 0 0 84px;
+}
+.chain-row .v {
+  color: var(--text-dim);
+  min-width: 0;
+  word-break: break-word;
+}

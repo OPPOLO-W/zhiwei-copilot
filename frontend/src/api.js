@@ -1,10 +1,28 @@
 const BASE = import.meta.env.VITE_API_BASE || "";
 
+// LLM 路径单次约 8–15s，留足余量；超时兜底避免 fetch 永久挂起把按钮锁死在 loading
+const TIMEOUT_MS = 90000;
+
 async function json(path, init) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      ...init,
+    });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(
+        `请求超时（${TIMEOUT_MS / 1000}s）。LLM 模式通常 8–15s，若持续超时请查看后端日志。`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   const text = await res.text();
   let body;
   try {
@@ -21,7 +39,7 @@ async function json(path, init) {
 
 export const getHealth = () => json("/api/health");
 
-export const ask = ({ question, mode, model, code, symptom, caseNo }) =>
+export const ask = ({ question, mode, model, code, symptom, caseNo, useLlm }) =>
   json("/api/query", {
     method: "POST",
     body: JSON.stringify({
@@ -31,6 +49,8 @@ export const ask = ({ question, mode, model, code, symptom, caseNo }) =>
       code: code || null,
       symptom: symptom || null,
       caseNo: caseNo || null,
+      // 后端 opt-in：仅 true 时走 LLM 驱动，默认仍为确定性路径
+      useLlm: !!useLlm,
     }),
   });
 

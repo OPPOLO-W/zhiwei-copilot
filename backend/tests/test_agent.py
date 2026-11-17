@@ -86,16 +86,20 @@ def test_agent_degrades_on_cross_model_code(store, other_model):
 # ---------------------------------------------------------------------------
 # 消融开关（文档 9.3 的 D / E 组）
 # ---------------------------------------------------------------------------
-def test_ablation_without_reflection_skips_reflect_node(store, model):
-    """D 组：关掉反思后不应出现 reflect 节点，但结论链必须保持完整。"""
+def test_ablation_without_reflection_skips_retry_node(store, model):
+    """D 组：关掉覆盖度重试后不应出现 retry 节点，但结论链必须保持完整。
+
+    注意：确定性路径的该节点是查表重试（retry），不是语义反思（reflect）；
+    后者只存在于 llm_agent 中。
+    """
     q = f"{model} 报 E11，左轮不转"
     full = agent_graph.run(store, question=q)
     ablated = agent_graph.run(store, question=q, use_reflection=False)
 
-    assert any(step["node"] == "reflect" for step in full.trace) or not full.reflections
+    assert any(step["node"] == "retry" for step in full.trace) or not full.reflections
     assert ablated.reflections == []
-    assert not any(step["node"] == "reflect" for step in ablated.trace)
-    # 兜底计划本身就能拿到规则结论，所以关掉反思不应影响首要故障
+    assert not any(step["node"] == "retry" for step in ablated.trace)
+    # 兜底计划本身就能拿到规则结论，所以关掉重试不应影响首要故障
     assert ablated.diagnosis.faults[0]["id"] == full.diagnosis.faults[0]["id"]
 
 

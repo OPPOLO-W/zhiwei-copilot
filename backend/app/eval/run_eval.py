@@ -9,7 +9,8 @@
 本实现不调用 LLM，直接用最强三元组套模板，因此它代表「无规则约束的图检索」下限。
 
 消融（文档 9.3）：
-  * agent_noreflect —— 去掉反思节点；
+  * agent_noreflect —— 去掉覆盖度重试节点（确定性路径的 retry；该系统名沿用历史口径，
+    确定性实现里没有语义反思，真正的 reflect 只在 --system agent_llm 中）；
   * agent_norules   —— 把规则推理换成纯图检索链（`reasoning/graph_only.py`）。
 """
 
@@ -56,12 +57,20 @@ def _run_rule(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
 
 
 def _run_agent(store: GraphStore, q: dict[str, Any], *,
-               use_reflection: bool = True, use_rules: bool = True) -> dict[str, Any]:
-    from ..agent import graph as agent_graph
+               use_reflection: bool = True, use_rules: bool = True,
+               use_llm: bool = False) -> dict[str, Any]:
+    if use_llm:
+        from ..agent.llm_agent import run_llm
 
-    run = agent_graph.run(store, question=q["question"], model=q.get("model"),
-                          code=q.get("code"), symptom=q.get("symptom"),
-                          use_reflection=use_reflection, use_rules=use_rules)
+        run = run_llm(store, question=q["question"], model=q.get("model"),
+                      code=q.get("code"), symptom=q.get("symptom"),
+                      use_reflection=use_reflection, use_rules=use_rules)
+    else:
+        from ..agent import graph as agent_graph
+
+        run = agent_graph.run(store, question=q["question"], model=q.get("model"),
+                              code=q.get("code"), symptom=q.get("symptom"),
+                              use_reflection=use_reflection, use_rules=use_rules)
     d = run.diagnosis
     covered = [v for v in (run.coverage or {}).values() if v == "covered"]
     return {
@@ -74,6 +83,8 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
         # 上下文完整度与工具效率：D/E 组的退化往往体现在这两项而不是准确率上
         "coverage": round(len(covered) / 5, 4) if run.coverage else None,
         "toolCalls": len(run.tool_results),
+        # 字段名沿用历史口径：确定性系统统计的是覆盖度重试轮次（retry），
+        # agent_llm 系统统计的才是 LLM 语义反思轮次（reflect）。
         "reflectionRounds": len(run.reflections),
         "policies": d.policies,
     }
@@ -87,13 +98,18 @@ def _run_agent_norules(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
     return _run_agent(store, q, use_rules=False)
 
 
+def _run_agent_llm(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
+    """RefKG-lite 的 LLM 驱动版本（文档第 8 节）；仅在配置 LLM_API_KEY 后可用。"""
+    return _run_agent(store, q, use_llm=True)
+
+
 def _nbrs(store: GraphStore, node_id: str, rel: str, direction: str = "out", limit: int = 50):
     """store.neighbors 返回 (edge, node)；统一成 (node, props)，并按单关系传参。"""
     return [(node, edge.props) for edge, node in store.neighbors(node_id, [rel], direction, limit)]
 
 
 def _run_rag(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
-    """弱基线：只取最强的一条 症状→故障→根因→方案 链，不做规则校验与反思。"""
+    """弱基线：只取最强的一条 症状→故障→根因→方案 链，不做规则校验与覆盖度重试。"""
     symptom = q.get("symptom") or ""
     if not symptom and q.get("code"):
         nodes = Q.find_error_code(store, q["code"])
@@ -131,7 +147,13 @@ SYSTEMS = {
     "agent_noreflect": _run_agent_noreflect,
     "agent_norules": _run_agent_norules,
     "rag": _run_rag,
+    # LLM 驱动版（文档第 8 节）：与 A~E 并列的对比项，默认不进入 --all
+    "agent_llm": _run_agent_llm,
 }
+
+# `--all` 固定跑文档 9.3 的五组系统（A~E），与 agent_llm 解耦，
+# 避免「接入 LLM」悄悄改变 make eval 的历史口径。
+ALL_SYSTEMS = ["rule", "agent", "agent_noreflect", "agent_norules", "rag"]
 
 
 def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "rule") -> dict[str, Any]:
@@ -201,7 +223,7 @@ def main() -> None:
 
     store = get_store()
     questions = load_questions(args.questions)[: args.limit]
-    systems = list(SYSTEMS) if args.all else [args.system]
+    systems = ALL_SYSTEMS if args.all else [args.system]
 
     agg: dict[str, dict[str, Any]] = {}
     for system in systems:
