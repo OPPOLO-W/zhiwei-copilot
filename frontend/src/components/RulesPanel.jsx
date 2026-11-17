@@ -1,9 +1,9 @@
 const CAT_COLOR = {
-  diagnosis: "#38bdf8",
-  ranking: "#a78bfa",
-  safety: "#f87171",
-  hygiene: "#64748b",
-  aggregation: "#34d399",
+  diagnosis: "#2b5266",
+  ranking: "#6b4a7a",
+  safety: "#b3271b",
+  hygiene: "#786e60",
+  aggregation: "#2a6b4c",
 };
 
 /** 规则库概览 + 本次运行的触发统计，用来证明「规则是显式、可审计的」。 */

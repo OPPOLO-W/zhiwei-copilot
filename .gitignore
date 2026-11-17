@@ -13,3 +13,6 @@ var/
 .DS_Store
 .idea/
 .workbuddy/
+
+# 本地视觉验收截图（不入库）
+.screenshots/

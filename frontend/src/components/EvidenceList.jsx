@@ -12,9 +12,15 @@ export default function EvidenceList({ evidence, activeId, onHover, onPick }) {
           onMouseLeave={() => onHover?.(null)}
           onClick={() => onPick?.(e)}
         >
+          {/* 三元组拆两行：主语一行、关系+宾语一行。
+              原来挤一行时，长 id 会在面板宽度处被硬断成 "STUC K"，很难读。 */}
           <div className="triple">
-            [{e.id}] {e.triple?.[0]} <span style={{ color: "#94a3b8" }}>—{e.triple?.[1]}→</span>{" "}
-            {e.triple?.[2]}
+            <div className="s">
+              [{e.id}] {e.triple?.[0]}
+            </div>
+            <div className="o">
+              <span className="rel">{e.triple?.[1]}</span> → {e.triple?.[2]}
+            </div>
           </div>
           {e.text && <div className="text">{e.text}</div>}
           <div className="src">

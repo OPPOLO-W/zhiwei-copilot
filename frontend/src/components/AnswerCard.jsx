@@ -28,12 +28,13 @@ export default function AnswerCard({ result, onEvidence }) {
     return (
       <div className="panel">
         <div className="panel-head">
+          <span className="idx">02</span>
           <b>推理结论</b>
+          <span className="en">Verdict</span>
         </div>
         <div className="empty-hint">
-          输入一个真实售后问题开始
-          <br />
-          规则模式与 Agent 模式会给出可追溯的证明路径
+          <div className="lead">Awaiting input</div>
+          输入一个真实售后问题开始。规则链与 Agent 链都会给出可逐条追溯的证明路径。
         </div>
       </div>
     );
@@ -51,14 +52,16 @@ export default function AnswerCard({ result, onEvidence }) {
   return (
     <div className="panel" style={{ flex: "1 1 auto", minHeight: 0 }}>
       <div className="panel-head">
+        <span className="idx">02</span>
         <b>推理结论</b>
+        <span className="en">Verdict</span>
         <span className={`pill ${cls}`}>{label}</span>
         <div className="conf">
-          <span>置信度</span>
+          <span>置信</span>
           <div className="conf-bar">
             <i style={{ width: `${conf}%` }} />
           </div>
-          <span style={{ fontFamily: "var(--mono)" }}>{(result.confidence ?? 0).toFixed(2)}</span>
+          <span>{(result.confidence ?? 0).toFixed(2)}</span>
         </div>
       </div>
       <div className="panel-body">
@@ -77,7 +80,8 @@ export default function AnswerCard({ result, onEvidence }) {
 
         {safety.map((w, i) => (
           <div className="warn-box" key={`s${i}`}>
-            ⚠️ {w}
+            <span className="mark">!</span>
+            {w}
           </div>
         ))}
         {others.slice(0, 3).map((w, i) => (

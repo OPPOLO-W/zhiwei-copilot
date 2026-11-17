@@ -8,10 +8,10 @@ function Row({ label, a, b, diff }) {
   return (
     <div className="chain-row" style={{ alignItems: "flex-start" }}>
       <span className="k" style={{ flex: "0 0 66px" }}>{label}</span>
-      <span className="v" style={{ flex: "1 1 0", color: diff ? "#fbbf24" : "var(--text-dim)" }}>
+      <span className="v" style={{ flex: "1 1 0", color: diff ? "var(--signal)" : "var(--text-dim)" }}>
         {a}
       </span>
-      <span className="v" style={{ flex: "1 1 0", color: diff ? "#fbbf24" : "var(--text-dim)" }}>
+      <span className="v" style={{ flex: "1 1 0", color: diff ? "var(--signal)" : "var(--text-dim)" }}>
         {b}
       </span>
     </div>
@@ -51,7 +51,7 @@ export default function ComparePanel({ result }) {
       <div className="sec-title">
         逐项对照
         <span style={{ marginLeft: 6, fontWeight: 400, color: "var(--text-faint)", fontSize: 10.5 }}>
-          （黄色 = 两侧不同）
+          （朱红 = 两侧不同）
         </span>
       </div>
       <div style={{ marginBottom: 4 }}>

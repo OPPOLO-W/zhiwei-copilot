@@ -69,7 +69,7 @@ export default function AgentPanel({ detail, trace }) {
           <tbody>
             {tools.map((t, i) => (
               <tr key={i}>
-                <td style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "#7dd3fc" }}>{t.tool}</td>
+                <td style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--blue)" }}>{t.tool}</td>
                 <td style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-faint)" }}>
                   {Object.entries(t.args || {})
                     .filter(([, v]) => v !== null && v !== "")

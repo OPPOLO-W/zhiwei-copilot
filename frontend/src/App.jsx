@@ -112,27 +112,45 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="header">
+      {/* 报头按「规格条」组织：标签在上、读数在下，每格一道竖线 */}
+      <header className="masthead">
         <div className="brand">
-          智维 Copilot
-          <small>DEEBOT T 系列 · 售后知识图谱推理</small>
+          <span className="mark" />
+          <div>
+            <div className="wordmark">智维 COPILOT</div>
+            <div className="sub">DEEBOT T 系列 · 售后知识图谱推理</div>
+          </div>
         </div>
-        <div className="header-right">
-          <span>
-            <i className={`dot ${health?.ok ? "ok" : "bad"}`} />
-            {health?.ok ? `${health.backend} · ${health.entities} 实体 / ${health.relations} 关系` : "图存储未连接"}
-          </span>
-          <span style={{ color: "var(--text-faint)" }}>
-            {health?.llm ? `LLM 已配置 · ${health.model}` : "未配置 LLM key · 确定性兜底"}
-          </span>
-          {result && (
-            <span style={{ color: llmSteps > 0 ? "var(--accent)" : "var(--text-faint)" }}>
-              本次 {llmSteps > 0 ? `LLM 驱动（${llmSteps} 步）` : "确定性"}
+        <div className="spec">
+          <div className="spec-cell">
+            <span className="k">图存储</span>
+            <span className="v">
+              <i className={`dot ${health?.ok ? "ok" : "bad"}`} />
+              {health?.ok ? health.backend : "未连接"}
             </span>
-          )}
-          <span style={{ color: "var(--text-faint)" }}>
-            子图 {graphNodeCount} 节点 / {graphEdgeCount} 边
-          </span>
+          </div>
+          <div className="spec-cell">
+            <span className="k">实体 / 关系</span>
+            <span className="v">
+              {health?.ok ? `${health.entities} / ${health.relations}` : "—"}
+            </span>
+          </div>
+          <div className="spec-cell">
+            <span className="k">推理引擎</span>
+            <span className="v dim">{health?.llm ? health.model : "未配置 key"}</span>
+          </div>
+          <div className="spec-cell">
+            <span className="k">本次执行</span>
+            <span className={`v ${result ? (llmSteps > 0 ? "live" : "dim") : "dim"}`}>
+              {result ? (llmSteps > 0 ? `LLM · ${llmSteps} 步` : "确定性") : "—"}
+            </span>
+          </div>
+          <div className="spec-cell">
+            <span className="k">子图规模</span>
+            <span className="v dim">
+              {graphNodeCount} 节点 / {graphEdgeCount} 边
+            </span>
+          </div>
         </div>
       </header>
 
@@ -145,6 +163,7 @@ export default function App() {
             loading={loading}
             slots={slots}
             initial={preset}
+            compact={route === "compare"}
           />
           {isCompare ? (
             <CompareAnswers result={result} onEvidence={(id) => setActiveEvidence(id)} />
@@ -154,69 +173,59 @@ export default function App() {
         </div>
 
         <div className="col" style={{ position: "relative" }}>
-          {isCompare && graphsDiffer && (
-            <div style={{ position: "absolute", top: 10, left: 12, zIndex: 6 }}>
-              <div className="segmented" title="切换查看哪条链路检索出的子图">
-                <button
-                  className={graphSide === "agent" ? "on" : ""}
-                  onClick={() => setGraphSide("agent")}
-                >
-                  Agent 子图
-                </button>
-                <button
-                  className={graphSide === "rule" ? "on" : ""}
-                  onClick={() => setGraphSide("rule")}
-                >
-                  规则子图
-                </button>
-              </div>
-            </div>
-          )}
-          {isCompare && !graphsDiffer && (
-            <div
-              style={{
-                position: "absolute",
-                top: 12,
-                left: 14,
-                zIndex: 6,
-                fontSize: 10.5,
-                color: "var(--text-faint)",
-                background: "var(--bg-soft)",
-                border: "1px solid var(--line-soft)",
-                borderRadius: 6,
-                padding: "3px 8px",
-              }}
-              title="规则链与 Agent 链共用同一诊断内核，证据子图逐节点相同"
-            >
-              两侧子图相同（同一证据子图）
-            </div>
-          )}
           <GraphCanvas
             graph={shownGraph}
             highlightEvidenceId={activeEvidence}
             onNodeSelect={setSelectedNode}
+            headExtra={
+              isCompare ? (
+                graphsDiffer ? (
+                  <div className="route sm" title="切换查看哪条链路检索出的子图">
+                    <button
+                      className={graphSide === "agent" ? "on" : ""}
+                      onClick={() => setGraphSide("agent")}
+                    >
+                      AGENT
+                    </button>
+                    <button
+                      className={graphSide === "rule" ? "on" : ""}
+                      onClick={() => setGraphSide("rule")}
+                    >
+                      规则
+                    </button>
+                  </div>
+                ) : (
+                  <span
+                    className="mono"
+                    style={{ marginLeft: "auto", fontSize: 9.5, color: "var(--ink-4)" }}
+                    title="规则链与 Agent 链共用同一诊断内核，证据子图逐节点相同"
+                  >
+                    两侧子图相同
+                  </span>
+                )
+              ) : null
+            }
           />
           {nodeDetail && (
             <div className="node-card">
               <div className="t">
                 <i
                   style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: 2,
-                    background: nodeDetail.color || "#64748b",
+                    width: 8,
+                    height: 8,
+                    background: nodeDetail.color || "var(--ink-4)",
                     display: "inline-block",
                   }}
                 />
                 <b>{nodeDetail.name}</b>
-                <span style={{ color: "var(--text-faint)", fontSize: 10.5 }}>{nodeDetail.label}</span>
+                <span className="tag">{nodeDetail.label}</span>
                 <span className="close" onClick={() => setSelectedNode(null)}>
                   ✕
                 </span>
               </div>
               <code>{nodeDetail.id}</code>
               {nodeDetail.risk && <div>风险等级：{nodeDetail.risk}</div>}
-              <div style={{ color: "var(--text-faint)", marginTop: 2 }}>
+              <div style={{ color: "var(--ink-3)" }}>
                 证据：{(nodeDetail.evidenceIds || []).join(" ") || "—"}
               </div>
             </div>
@@ -236,7 +245,12 @@ export default function App() {
 
       <Timeline trace={result?.trace} runId={result?.runId} />
 
-      {error && <div className="toast">⚠ {error}</div>}
+      {error && (
+        <div className="toast">
+          <span className="mark">!</span>
+          {error}
+        </div>
+      )}
     </div>
   );
 }

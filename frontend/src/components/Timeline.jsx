@@ -1,20 +1,19 @@
 import { useState } from "react";
 
+// 「反射/重试」两个节点语义不同，不可混称：
+//   retry  = 确定性路径的覆盖度查表重试（无 LLM）
+//   reflect = LLM 路径的语义反思（缺什么、为何缺、是否有新矛盾）
+// verify 是确定性矛盾校验，两条路径共用同一份实现，LLM 不得改写。
 const LABEL = {
-  intake: ["解析槽位", "🔎"],
-  decompose: ["问题拆解", "🧩"],
-  plan: ["工具规划", "🗺"],
-  act: ["执行工具", "⚙"],
-  // 两个节点语义不同，不可混称「反思」：
-  //   retry  = 确定性路径的覆盖度查表重试（无 LLM）
-  //   reflect = LLM 路径的语义反思（缺什么、为何缺、是否有新矛盾）
-  retry: ["重试（规则策略）", "↻"],
-  reflect: ["反思（LLM）", "↻"],
-  // verify 是确定性矛盾校验，两条路径共用同一份实现，LLM 不得改写
-  // 主标签保持 4 字以免换行，确定性子标记放在副行（hover 有完整说明）
-  verify: ["矛盾校验", "✓"],
-  finalize: ["生成答案", "★"],
-  run_rules: ["规则推理", "⚙"],
+  intake: "解析槽位",
+  decompose: "问题拆解",
+  plan: "工具规划",
+  act: "执行工具",
+  retry: "重试（规则策略）",
+  reflect: "反思（LLM）",
+  verify: "矛盾校验",
+  finalize: "生成答案",
+  run_rules: "规则推理",
 };
 
 export default function Timeline({ trace, runId }) {
@@ -24,8 +23,13 @@ export default function Timeline({ trace, runId }) {
   if (!steps.length) {
     return (
       <div className="timeline">
-        <div className="timeline-head">推理轨迹</div>
-        <div style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
+        <div className="timeline-head">
+          <span className="no" style={{ color: "var(--signal)" }}>
+            05
+          </span>
+          <span>推理轨迹 / Trace</span>
+        </div>
+        <div style={{ color: "var(--ink-3)", fontSize: 11.5, lineHeight: 1.8 }}>
           尚未运行。确定性路径生成 intake → decompose → plan → act → retry → verify → finalize；
           LLM 路径把 retry 换成 reflect（语义反思）。
         </div>
@@ -38,16 +42,23 @@ export default function Timeline({ trace, runId }) {
   return (
     <div className="timeline">
       <div className="timeline-head">
-        <span>推理轨迹 · {steps.length} 步</span>
-        <span style={{ fontFamily: "var(--mono)" }}>{runId}</span>
-        <span style={{ marginLeft: "auto" }}>点击步骤查看载荷</span>
+        <span className="no" style={{ color: "var(--signal)" }}>
+          05
+        </span>
+        <span>推理轨迹 / Trace</span>
+        <span>{steps.length} 步</span>
+        <span className="mono" style={{ textTransform: "none", letterSpacing: 0 }}>
+          {runId}
+        </span>
+        <span className="hint" style={{ marginLeft: "auto" }}>
+          点击步骤查看载荷
+        </span>
       </div>
       <div className="steps">
         {steps.map((s, i) => {
-          const [label, icon] = LABEL[s.node] || [s.node, "•"];
+          const label = LABEL[s.node] || s.node;
           // LLM 反思调用失败时仍会写 reflect 节点，但 driver=heuristic，标签必须如实降级
-          const shown =
-            s.node === "reflect" && s.driver !== "llm" ? "重试（规则策略）" : label;
+          const shown = s.node === "reflect" && s.driver !== "llm" ? "重试（规则策略）" : label;
           const prev = i > 0 ? steps[i - 1].latencyMs || 0 : 0;
           const delta = Math.max(0, (s.latencyMs || 0) - prev);
           return (
@@ -64,7 +75,7 @@ export default function Timeline({ trace, runId }) {
               }
             >
               <div className="n">
-                <i>{icon}</i>
+                <span className="no">{String(i + 1).padStart(2, "0")}</span>
                 {shown}
               </div>
               <div className="s">

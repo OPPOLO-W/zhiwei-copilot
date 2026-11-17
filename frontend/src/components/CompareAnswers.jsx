@@ -1,7 +1,7 @@
 /** 对比模式：把规则链与 Agent 链的结论并列展示，避免只看到一侧。 */
 import { useState } from "react";
 
-const PREVIEW = 150;
+const PREVIEW = 48;
 
 function Row({ label, value }) {
   return (
@@ -34,7 +34,7 @@ function ChainCard({ title, tag, tone, data, extra = [] }) {
         </span>
       </div>
 
-      <div className="answer-text" style={{ fontSize: 11.5, lineHeight: 1.75 }}>
+      <div className="answer-text" style={{ fontSize: 12, lineHeight: 1.8 }}>
         {shown}
       </div>
       {long && (
@@ -50,22 +50,21 @@ function ChainCard({ title, tag, tone, data, extra = [] }) {
         />
         <Row label="首要根因" value={top(causes)?.name || "无"} />
         <Row label="首选方案" value={top(sols)?.name || "无"} />
-        <Row label="命中策略" value={(data?.policies || []).join("、") || "无"} />
-        <Row
-          label="证据 / 结论 / 检查"
-          value={`${(data?.evidence || []).length} / ${(data?.claims || []).length} / ${
-            (data?.checks || []).length
-          }`}
-        />
       </div>
 
-      {!!extra.length && (
-        <div className="chain-facts">
-          {extra.map((e) => (
-            <Row key={e.k} label={e.k} value={e.v} />
-          ))}
-        </div>
-      )}
+      {/* 原来 9 行事实把两张卡撑到一屏放不下，第二张卡直接看不见；
+          次要指标压成一行等宽小字，两侧仍可逐项对读 */}
+      <div className="chain-meta">
+        <span>策略 {(data?.policies || []).join("、") || "无"}</span>
+        <span>证据 {(data?.evidence || []).length}</span>
+        <span>结论 {(data?.claims || []).length}</span>
+        <span>检查 {(data?.checks || []).length}</span>
+        {extra.map((e) => (
+          <span key={e.k}>
+            {e.k} {e.v}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -75,7 +74,9 @@ export default function CompareAnswers({ result }) {
     return (
       <div className="panel" style={{ flex: "1 1 auto", minHeight: 0 }}>
         <div className="panel-head">
+          <span className="idx">02</span>
           <b>双侧结论</b>
+          <span className="en">Both</span>
         </div>
         <div className="empty-hint">
           选「对比」后提问，这里会并列显示规则链与 Agent 链的结论
@@ -90,7 +91,9 @@ export default function CompareAnswers({ result }) {
     return (
       <div className="panel" style={{ flex: "1 1 auto", minHeight: 0 }}>
         <div className="panel-head">
+          <span className="idx">02</span>
           <b>双侧结论</b>
+          <span className="en">Both</span>
         </div>
         <div className="empty-hint">当前结果不是对比模式。请在上方选择「对比」后重新提问。</div>
       </div>
@@ -127,8 +130,10 @@ export default function CompareAnswers({ result }) {
   return (
     <div className="panel" style={{ flex: "1 1 auto", minHeight: 0 }}>
       <div className="panel-head">
+        <span className="idx">02</span>
         <b>双侧结论</b>
-        <span className="pill accent">规则链 vs Agent 链</span>
+        <span className="en">Both</span>
+        <span className="pill accent">规则 vs Agent</span>
       </div>
       <div className="panel-body" style={{ overflow: "auto" }}>
         <div className="chain-summary">
@@ -138,8 +143,8 @@ export default function CompareAnswers({ result }) {
             答案 {(ruleData.answer || "").length} / {(agentData.answer || "").length} 字
           </span>
         </div>
-        <ChainCard title="规则链" tag="纯规则引擎" tone="#94a3b8" data={ruleData} extra={ruleExtra} />
-        <ChainCard title="Agent 链" tag={agentTag} tone="#38bdf8" data={agentData} extra={agentExtra} />
+        <ChainCard title="规则链" tag="纯规则引擎" tone="var(--ink-3)" data={ruleData} extra={ruleExtra} />
+        <ChainCard title="Agent 链" tag={agentTag} tone="var(--signal)" data={agentData} extra={agentExtra} />
       </div>
     </div>
   );

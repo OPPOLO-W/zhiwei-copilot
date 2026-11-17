@@ -32,6 +32,14 @@ export default function SideTabs({
 
   return (
     <div className="panel" style={{ flex: 1, minHeight: 0 }}>
+      <div className="tab-head">
+        <span className="idx">04</span>
+        <b>台账</b>
+        <span className="en">Ledger</span>
+        <span className="count">
+          {result ? `${(result.evidence || []).length} 条证据 · ${(result.trace || []).length} 步` : "—"}
+        </span>
+      </div>
       <div className="tabs">
         {TABS.map(([key, label]) => (
           <button key={key} className={tab === key ? "on" : ""} onClick={() => setTab(key)}>
@@ -40,7 +48,12 @@ export default function SideTabs({
         ))}
       </div>
       <div className="panel-body">
-        {!result && <div className="empty-hint">运行一次诊断后，这里展示证据、证明树与规则轨迹。</div>}
+        {!result && (
+          <div className="empty-hint">
+            <div className="lead">Empty</div>
+            运行一次诊断后，这里展示证据、证明树与规则轨迹。
+          </div>
+        )}
 
         {result && tab === "evidence" && (
           <EvidenceList
