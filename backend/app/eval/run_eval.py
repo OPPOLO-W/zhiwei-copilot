@@ -109,6 +109,13 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
         # 上下文完整度与工具效率：D/E 组的退化往往体现在这两项而不是准确率上
         "coverage": round(len(covered) / 5, 4) if run.coverage else None,
         "toolCalls": len(run.tool_results),
+        # P3：文档工具有没有被真的用上、运行时有没有拦下悬空引用
+        "docToolCalls": len([
+            t for t in run.tool_results
+            if t.get("tool") in ("get_document_span", "search_documents")
+        ]),
+        "unsupportedClaims": int((run.extra or {}).get("unsupportedClaims") or 0),
+        "docEvidence": int((run.extra or {}).get("docEvidence") or 0),
         # 字段名沿用历史口径：确定性系统统计的是覆盖度重试轮次（retry），
         # agent_llm 系统统计的才是 LLM 语义反思轮次（reflect）。
         "reflectionRounds": len(run.reflections),
@@ -298,6 +305,9 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             "rankEvidenceMiss": out.get("rankEvidenceMiss") or 0,
             "coverage": out.get("coverage"),
             "toolCalls": out.get("toolCalls"),
+            "docToolCalls": out.get("docToolCalls"),
+            "unsupportedClaims": out.get("unsupportedClaims"),
+            "docEvidence": out.get("docEvidence"),
             "reflectionRounds": out.get("reflectionRounds"),
             "latencyMs": out["latencyMs"],
         })

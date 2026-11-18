@@ -53,7 +53,7 @@ log = logging.getLogger("zhiwei.agent.llm")
 # 补充探索工具：规则骨干已跑过 run_rules/retrieve_chain，LLM 只能选这些
 _EXPLORE_TOOLS = {
     "search_similar_cases", "expand_subgraph", "check_compatibility",
-    "resolve_entity", "get_document_span", "find_paths",
+    "resolve_entity", "get_document_span", "find_paths", "search_documents",
 }
 
 
@@ -207,7 +207,7 @@ def run_llm(
     rounds = 0
     while (use_reflection and rounds < settings.agent_max_reflections
            and steps_used < settings.agent_max_steps):
-        summary = _evidence_summary(diagnosis, similar, compat)
+        summary = _evidence_summary(diagnosis, similar, compat, store, _tool_notes(results))
         refl = _reflect(client, store, question or "", slots, summary, llm_usage)
         driver = "llm"
         if refl is None:
@@ -277,8 +277,10 @@ def run_llm(
     # ---------- finalize：LLM 生成带引用答复（失败回退模板）----------
     # _finalize 永远返回字符串，不能用「is not None」判断；改看本轮是否真的成功调用了 LLM
     calls_before = llm_usage["calls"]
+    doc_ev = _doc_evidence(results)
     final = _finalize(client, store, question or "", slots, diagnosis,
-                      similar, compat, coverage, llm_usage)
+                      similar, compat, coverage, llm_usage,
+                      extra_evidence=doc_ev, notes=_tool_notes(results))
     answer = final.text
     claims_source = "llm" if any(c.get("source") == "llm" for c in final.claims) else "rule"
     if ask_payload:
@@ -286,6 +288,7 @@ def run_llm(
         answer = f"{answer}\n\n{ask_payload['question']}"
     step("finalize", coverage=coverage, llmAnswer=llm_usage["calls"] > calls_before,
          claims=len(final.claims), claimsSource=claims_source,
+         unsupportedClaims=final.droppedClaims,
          status="needs_info" if ask_payload else "ok",
          latencyMs=int((time.perf_counter() - started) * 1000))
 
@@ -298,6 +301,8 @@ def run_llm(
         extra={"compatibility": compat, "similarCases": similar[:5], "issues": issues,
                "unknownModel": slots.model_unknown, "llm": llm_usage,
                "claimsSource": claims_source, "askUser": ask_payload,
+               "unsupportedClaims": final.droppedClaims,
+               "docEvidence": len(doc_ev),
                # 供 API 写回会话：跨轮事实必须能累积，否则第二轮又是从零开始
                "facts": facts, "rejectedFacts": rejected_facts},
     )
@@ -468,7 +473,7 @@ def _plan(client: LLMClient, store: GraphStore, question: str, slots: Slots,
           compat: list[dict[str, Any]], budget: int,
           usage: dict[str, Any]) -> list[dict[str, Any]] | None:
     try:
-        summary = _evidence_summary(diagnosis, similar, compat)
+        summary = _evidence_summary(diagnosis, similar, compat, store)
         data = client.chat_json(plan_prompt(store, question, slots.to_dict(), summary, budget),
                                 max_tokens=900)
         out = PlanOutput.model_validate(data)
@@ -638,21 +643,26 @@ class _Final:
     text: str
     claims: list[dict[str, Any]]
     warnings: list[str]
+    droppedClaims: int = 0
 
 
 def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
               diagnosis: Diagnosis, similar: list[dict[str, Any]],
               compat: list[dict[str, Any]], coverage: dict[str, str],
-              usage: dict[str, Any]) -> _Final:
+              usage: dict[str, Any],
+              extra_evidence: list[dict[str, Any]] | None = None,
+              notes: list[str] | None = None) -> _Final:
     """LLM 组答案；失败或产出可疑时回退模板组答案。
 
     无论 LLM 写了什么，规则告警与免责声明都会被强制保留（安全边界）。
     返回的 claims 标记 `source="llm"`，与规则链 claims（`ruleIds` 非空）可区分。
+    P3.2：claims 的 evidenceIds 必须落在真实证据集合内，悬空的整条丢弃并计数。
     """
+    evidence = list(diagnosis.evidence) + list(extra_evidence or [])
     try:
         data = client.chat_json(
             finalize_prompt(store, question, slots.to_dict(), diagnosis.to_dict(),
-                            diagnosis.evidence, similar, compat),
+                            evidence, similar, compat, notes=notes),
             max_tokens=1600,
         )
         out = FinalAnswerOutput.model_validate(data)
@@ -660,14 +670,38 @@ def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
         text = (out.answer or "").strip()
         if not text:
             return _fallback_final(diagnosis, similar, compat, slots, coverage)
+        claims, dropped = _verify_claims(out.claims, evidence)
         return _Final(
             text=_guard_answer(text, diagnosis),
-            claims=[_claim_payload(c) for c in out.claims],
+            claims=claims,
             warnings=_merge_warnings(diagnosis.warnings, out.warnings),
+            droppedClaims=dropped,
         )
     except (LLMError, ValueError, TypeError) as exc:
         log.warning("LLM 答案生成失败，回退模板组答案: %s", exc)
         return _fallback_final(diagnosis, similar, compat, slots, coverage)
+
+
+def _verify_claims(claims: list[Claim],
+                   evidence: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """运行时引用校验：只保留 evidenceIds 真实存在的 claim。
+
+    - 部分悬空：保留命中的 id，丢掉自造 id（不让假引用混进响应）；
+    - 全部悬空：整条丢弃并计数，答案正文不动（正文由 `_guard_answer` 兜底安全边界）。
+    """
+    valid = {str(e.get("id")) for e in evidence if e.get("id")}
+    kept: list[dict[str, Any]] = []
+    dropped = 0
+    for claim in claims:
+        payload = _claim_payload(claim)
+        ids = [str(i) for i in payload["evidenceIds"] if str(i) in valid]
+        if payload["evidenceIds"] and not ids:
+            dropped += 1
+            continue
+        payload["evidenceIds"] = ids
+        kept.append(payload)
+    return kept, dropped
+
 
 
 def _fallback_final(diagnosis: Diagnosis, similar, compat, slots: Slots,
@@ -736,20 +770,106 @@ def _fallback_plan(slots: Slots) -> list[dict[str, Any]]:
     return plan
 
 
+def _doc_evidence(results: list[ToolResult]) -> list[dict[str, Any]]:
+    """把文档工具取到的正文变成可引用的证据条目（id 用 chunkId）。
+
+    P3 之前工具结果只进 trace，模型看不到内容；这里让「手册原文」也能被 claim 引用，
+    与图谱边证据共用同一套 evidenceIds 口径。
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for r in results:
+        if not r.ok or not r.data:
+            continue
+        if r.tool == "search_documents" and isinstance(r.data, list):
+            for hit in r.data:
+                cid = str(hit.get("chunkId") or "")
+                if cid and cid not in seen:
+                    seen.add(cid)
+                    out.append({"id": cid, "source": hit.get("docId"),
+                                "text": _clip(hit.get("text") or "", 120), "kind": "doc"})
+        elif r.tool == "get_document_span" and isinstance(r.data, dict):
+            for p in r.data.get("passages") or []:
+                cid = str(p.get("chunkId") or "")
+                if cid and cid not in seen:
+                    seen.add(cid)
+                    out.append({"id": cid, "source": r.data.get("docId"),
+                                "text": _clip(p.get("text") or "", 120), "kind": "doc"})
+    return out[:6]
+
+
+def _tool_notes(results: list[ToolResult], limit: int = 8) -> list[str]:
+    """把工具返回的结构压成几行给模型看（此前只有「返回 N 条」这种计数）。"""
+    notes: list[str] = []
+    for r in results:
+        if not r.ok or not r.data:
+            continue
+        if r.tool == "expand_subgraph" and isinstance(r.data, dict):
+            names = "、".join(
+                f"{n.get('id')}({n.get('name')})" for n in (r.data.get("nodes") or [])[:6])
+            if names:
+                notes.append(f"子图邻接：{names}")
+        elif r.tool == "find_paths" and isinstance(r.data, list):
+            for path in r.data[:2]:
+                notes.append("路径：" + "；".join(path.get("edges") or [])[:150])
+        elif r.tool == "search_similar_cases" and isinstance(r.data, list):
+            cases = "、".join(str(c.get("caseNo")) for c in r.data[:4])
+            if cases:
+                notes.append(f"相似案例：{cases}")
+        elif r.tool == "check_compatibility" and isinstance(r.data, dict):
+            notes.append(f"兼容性：{r.data.get('item')}→{r.data.get('model')}"
+                         f"{'兼容' if r.data.get('compatible') else '不兼容'}")
+    return notes[:limit]
+
+
+def _clip(text: str, limit: int) -> str:
+    """压成单行并截断，避免摘要被长证据撑爆。"""
+    flat = " ".join(str(text).split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
+
+def _doc_ids(store: GraphStore | None, node_id: str, limit: int = 2) -> list[str]:
+    """节点直连的文档 id（仅方案/案例有 DOCUMENTED_IN 边）。"""
+    if store is None:
+        return []
+    try:
+        return [n.id for _edge, n in store.neighbors(
+            node_id, ["DOCUMENTED_IN"], "out", limit)]
+    except Exception:  # pragma: no cover - 存储实现差异
+        return []
+
+
 def _evidence_summary(d: Diagnosis, similar: list[dict[str, Any]],
-                      compat: list[dict[str, Any]]) -> str:
-    """裁剪后的证据摘要，控制 LLM 上下文体积。"""
+                      compat: list[dict[str, Any]],
+                      store: GraphStore | None = None,
+                      notes: list[str] | None = None) -> str:
+    """裁剪后的证据摘要，控制 LLM 上下文体积。
+
+    P3.0：带上 nodeId / docId / 证据编号与原文。此前只给名称，导致
+    expand_subgraph(node_ids=…)、find_paths(start,end)、get_document_span(doc_id)
+    三个工具的参数无从生成，等于看得见、用不了。
+    """
     parts: list[str] = []
     if d.faults:
         parts.append("候选故障：" + "、".join(
-            f"{f['name']}({f['confidence']})" for f in d.faults[:3]))
+            f"{f['name']}({f['confidence']},{f['id']})" for f in d.faults[:3]))
     if d.causes:
         parts.append("候选根因：" + "、".join(
-            f"{c['name']}({c['confidence']})" for c in d.causes[:3]))
+            f"{c['name']}({c['confidence']},{c['id']})" for c in d.causes[:3]))
     if d.solutions:
-        parts.append("候选方案：" + "、".join(s["name"] for s in d.solutions[:3]))
+        rows = []
+        for s in d.solutions[:3]:
+            docs = _doc_ids(store, s["id"])
+            rows.append(f"{s['name']}[{s['id']}" + (f";文档 {','.join(docs)}" if docs else "") + "]")
+        parts.append("候选方案：" + "、".join(rows))
     if d.checks:
-        parts.append("检查项：" + "、".join(c["name"] for c in d.checks[:4]))
+        parts.append("检查项：" + "、".join(
+            f"{c['name']}({c['id']})" for c in d.checks[:4]))
+    if d.evidence:
+        parts.append("证据编号：" + "、".join(e["id"] for e in d.evidence[:8]))
+        parts.append("证据原文：\n" + "\n".join(
+            f"{e['id']}（{e.get('source') or '图谱'}）{_clip(e.get('text') or '', 46)}"
+            for e in d.evidence[:4]))
     if d.warnings:
         parts.append("告警：" + "；".join(d.warnings[:3]))
     if d.policies:
@@ -760,4 +880,6 @@ def _evidence_summary(d: Diagnosis, similar: list[dict[str, Any]],
     if compat:
         parts.append("兼容性：" + "、".join(
             f"{c.get('item')}{'兼容' if c.get('compatible') else '不兼容'}" for c in compat[:4]))
+    if notes:
+        parts.append("工具取证：\n" + "\n".join(notes[:8]))
     return "\n".join(parts) or "（尚无证据）"

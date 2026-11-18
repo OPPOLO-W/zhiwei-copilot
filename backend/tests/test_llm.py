@@ -251,6 +251,22 @@ def _mk_diag(fault_ids, solution_ids, policies=(), warnings=()) -> Diagnosis:
     )
 
 
+def test_evidence_summary_carries_ids_evidence_and_docs(store):
+    """P3.0：摘要必须带 nodeId / docId / 证据原文，否则工具无从取参。"""
+    d = _mk_diag(["FAULT:LEFT-WHEEL-STUCK"], ["SOL:REPLACE-WHEEL"])
+    d.faults[0]["confidence"] = 0.82
+    d.evidence[0] = {
+        "id": "E1", "source": "DOC:T20PRO-MANUAL",
+        "text": "左轮不转提示左驱动轮卡滞：机器人清扫中停住，APP 提示左轮异常",
+    }
+    text = llm_agent._evidence_summary(d, [], [], store)
+    assert "FAULT:LEFT-WHEEL-STUCK" in text
+    assert "SOL:REPLACE-WHEEL" in text
+    assert "DOC:T20PRO-MANUAL" in text
+    assert "E1" in text
+    assert "左轮不转提示" in text
+
+
 def test_apply_ranking_reorders_only_within_candidates():
     d = _mk_diag(["F1", "F2", "F3"], ["S1", "S2"])
     audit = llm_agent._apply_ranking(d, llm_agent._Ranking(

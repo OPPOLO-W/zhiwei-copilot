@@ -8,14 +8,63 @@
 
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
+from ..config import DATA_DIR
 from ..kg import queries as Q
 from ..kg.store import GraphStore
+from ..kg.text_index import BM25
 from ..reasoning.graph_only import diagnose_graph_only
 from ..reasoning.service import diagnose
+
+# 文档正文缓存：chunks.jsonl 是 925 行的静态语料，进程内只读一次。
+_CHUNKS: dict[str, list[dict[str, Any]]] | None = None
+_INDEX: tuple[BM25, list[dict[str, Any]]] | None = None
+
+
+def _load_chunks(path: Path | None = None) -> dict[str, list[dict[str, Any]]]:
+    global _CHUNKS
+    if _CHUNKS is None:
+        groups: dict[str, list[dict[str, Any]]] = {}
+        file = path or (DATA_DIR / "raw" / "chunks.jsonl")
+        if file.exists():
+            for line in file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                doc_id = str(row.get("doc_id") or "")
+                if not doc_id:
+                    continue
+                groups.setdefault(doc_id, []).append({
+                    "chunkId": str(row.get("chunk_id") or ""),
+                    "page": row.get("page"),
+                    "section": str(row.get("section") or ""),
+                    "text": str(row.get("text") or ""),
+                })
+        _CHUNKS = groups
+    return _CHUNKS
+
+
+def _doc_index(path: Path | None = None) -> tuple[BM25, list[dict[str, Any]]]:
+    """全语料 BM25 索引（只建一次），供 search_documents 用。"""
+    global _INDEX
+    if _INDEX is None:
+        rows: list[dict[str, Any]] = []
+        for doc_id, chunks in _load_chunks(path).items():
+            for chunk in chunks:
+                rows.append({"docId": doc_id, **chunk})
+        _INDEX = (BM25([r["text"] for r in rows]), rows)
+    return _INDEX
+
+
+def _clip(text: str, limit: int) -> str:
+    flat = " ".join(str(text or "").split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
 
 
 @dataclass
@@ -50,6 +99,7 @@ class Tools:
             "search_similar_cases": self.search_similar_cases,
             "check_compatibility": self.check_compatibility,
             "get_document_span": self.get_document_span,
+            "search_documents": self.search_documents,
         }
 
     # ---- 工具实现 ----
@@ -121,12 +171,49 @@ class Tools:
             "evidence": edges[0][1].get("evidence") if edges else "",
         }
 
-    def get_document_span(self, doc_id: str) -> dict[str, Any] | None:
+    def get_document_span(self, doc_id: str, limit: int = 3,
+                          max_chars: int = 600) -> dict[str, Any] | None:
+        """返回文档的正文段落（此前只回元数据，名字叫 span 却拿不到文本）。
+
+        单次最多 3 段、合计约 600 字，避免把上下文撑爆；段落按页码/顺序取前几段，
+        调用方需要更细的内容就用 search_documents 定向检索。
+        """
         node = self.store.get(doc_id)
         if node is None:
             return None
-        return {"docId": node.props.get("docId"), "title": node.name,
-                "url": node.props.get("url"), "authority": node.props.get("authority")}
+        passages: list[dict[str, Any]] = []
+        used = 0
+        for chunk in _load_chunks().get(doc_id, [])[:max(1, limit)]:
+            text = _clip(chunk["text"], 220)
+            if not text or used + len(text) > max_chars:
+                continue
+            used += len(text)
+            passages.append({"chunkId": chunk["chunkId"], "page": chunk["page"],
+                             "section": chunk["section"], "text": text})
+        return {
+            "docId": node.props.get("docId") or node.id,
+            "title": node.name,
+            "url": node.props.get("url"),
+            "authority": node.props.get("authority"),
+            "chunkCount": len(_load_chunks().get(doc_id, [])),
+            "passages": passages,
+        }
+
+    def search_documents(self, query: str, k: int = 3) -> list[dict[str, Any]]:
+        """按关键词检索手册/FAQ 正文，返回带 docId 与页码的片段。"""
+        index, rows = _doc_index()
+        hits = index.search(query, k=max(1, min(5, k)))
+        return [
+            {
+                "docId": rows[i]["docId"],
+                "chunkId": rows[i]["chunkId"],
+                "page": rows[i]["page"],
+                "section": rows[i]["section"],
+                "text": _clip(rows[i]["text"], 180),
+                "score": round(score, 2),
+            }
+            for i, score in hits
+        ]
 
     # ---- 统一执行入口 ----
     def call(self, name: str, **kwargs: Any) -> ToolResult:
@@ -147,6 +234,8 @@ class Tools:
         if isinstance(data, list):
             return f"返回 {len(data)} 条"
         if isinstance(data, dict):
+            if "passages" in data:
+                return f"《{data.get('title') or ''}》返回 {len(data['passages'])} 段正文"
             if "nodeCount" in data:
                 return f"子图 {data['nodeCount']} 节点 / {data['edgeCount']} 边"
             if "faults" in data:

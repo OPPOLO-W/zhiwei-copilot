@@ -131,7 +131,11 @@ EXPLORATION_TOOLS: dict[str, dict[str, str]] = {
         "label": "可选实体类型（如 Symptom / Component）",
     },
     "get_document_span": {
-        "doc_id": "文档节点 ID",
+        "doc_id": "文档节点 ID（DOC:…），返回该文档的正文段落",
+    },
+    "search_documents": {
+        "query": "检索关键词，如「轮组 毛发 清理」",
+        "k": "返回片段数，≤3",
     },
     "find_paths": {
         "start": "起始节点 ID",
@@ -255,6 +259,8 @@ def plan_prompt(
                 "【可用工具】\n" + tool_spec + "\n"
                 "选择原则：\n"
                 "- 只调用能补足证据缺口、且参数来自已识别槽位/已收集证据的工具；\n"
+                "- 证据摘要里给了 nodeId（如 FAULT:…/CAUSE:…/SOL:…）与文档 id（DOC:…），"
+                "需要展开子图或查文档时直接用这些 id，不要凭空拼；\n"
                 "- 已收集证据已能回答问题就设 done=true，calls 留空；\n"
                 "- 不得编造参数：型号、错误码、节点 ID 必须来自上面给出的内容；\n"
                 "- 预算为 0 时 done=true。\n"
@@ -298,7 +304,11 @@ def finalize_prompt(
     evidence: list[dict[str, Any]],
     similar: list[dict[str, Any]],
     compatibility: list[dict[str, Any]],
+    notes: list[str] | None = None,
 ) -> list[dict[str, str]]:
+    tool_block = (
+        "【工具取证】\n" + "\n".join(notes) + "\n" if notes else ""
+    )
     return [
         {"role": "system", "content": system_prompt(store)},
         {
@@ -310,9 +320,11 @@ def finalize_prompt(
                 "【证据清单】\n<evidence>\n" + _dump(evidence) + "\n</evidence>\n"
                 "【相似案例】\n<similar>\n" + _dump(similar[:5]) + "\n</similar>\n"
                 "【兼容性核查】\n<compat>\n" + _dump(compatibility) + "\n</compat>\n"
+                + tool_block +
                 "写作要求：\n"
                 "- answer 用中文，先给最可能故障与根因，再给检查顺序与方案，最后给出需转售后/停用的条件；\n"
-                "- 结论中的 claim 必须能对应 evidence 里的 E 编号，evidenceIds 只填真实存在的编号；\n"
+                "- 结论中的 claim 必须对应证据清单里的 id：图谱证据用 E 编号，手册原文用 chunkId"
+                "（如 DOC:T20PRO-MANUAL#p3c2），不得自造编号；\n"
                 "- 不确定的地方明确说「不确定」，不要把相似案例说成因果；\n"
                 "- warnings 保留规则引擎给出的安全/保修告警原文，不要删减。\n"
                 "按以下 JSON Schema 输出：\n" + _dump(FinalAnswerOutput.model_json_schema())
