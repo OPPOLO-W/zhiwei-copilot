@@ -577,8 +577,67 @@ body {
   color: var(--blue);
 }
 
-.claims {
+/* 追问卡片：把「问一个检查项」做成一屏内可点的动作，而不是让用户自己打字描述 */
+.ask-card {
+  margin-top: 12px;
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--blue);
+  background: rgba(43, 82, 102, 0.04);
+  padding: 10px 12px;
+}
+.ask-head {
   display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--blue);
+}
+.ask-head .mark {
+  font-family: var(--mono);
+  font-weight: 700;
+}
+.ask-title {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.ask-meta {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--ink-4);
+}
+.ask-q {
+  margin: 7px 0 9px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--ink);
+}
+.ask-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ask-btn {
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid var(--blue);
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+}
+.ask-btn:hover:not(:disabled) {
+  background: var(--blue);
+  color: #fff;
+}
+.ask-btn.ghost {
+  border-color: var(--rule-soft);
+  color: var(--ink-3);
+}
+.ask-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.claims {  display: flex;
   flex-direction: column;
 }
 .claim {

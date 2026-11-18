@@ -39,7 +39,7 @@ async function json(path, init) {
 
 export const getHealth = () => json("/api/health");
 
-export const ask = ({ question, mode, model, code, symptom, caseNo, useLlm }) =>
+export const ask = ({ question, mode, model, code, symptom, caseNo, useLlm, sessionId, checkResults }) =>
   json("/api/query", {
     method: "POST",
     body: JSON.stringify({
@@ -49,6 +49,10 @@ export const ask = ({ question, mode, model, code, symptom, caseNo, useLlm }) =>
       code: code || null,
       symptom: symptom || null,
       caseNo: caseNo || null,
+      // 会话续跑：sessionId 让后端继承槽位与已采信事实
+      sessionId: sessionId || null,
+      // 追问答案：checkId + 用户选择，后端据此改写事实并重算
+      checkResults: checkResults || null,
       // 后端 opt-in：仅 true 时走 LLM 驱动，默认仍为确定性路径
       useLlm: !!useLlm,
     }),

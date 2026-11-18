@@ -45,10 +45,12 @@ def diagnose_graph_only(
     code: str | None = None,
     symptom: str | None = None,
     question: str | None = None,
+    check_results: list[dict[str, Any]] | None = None,
 ) -> Diagnosis:
     """图形检索诊断。签名与 `service.diagnose` 一致，便于评测里平替。"""
     try:
-        fp = build_facts(store, case_no=case_no, model=model, code=code, symptom=symptom)
+        fp = build_facts(store, case_no=case_no, model=model, code=code, symptom=symptom,
+                         check_results=check_results)
     except ValueError as exc:
         # 落空降级属于实体链接，不属于规则推理，两组系统保持同一套降级口径
         fallback = service._lookup_fallback(store, str(exc), model=model, code=code)

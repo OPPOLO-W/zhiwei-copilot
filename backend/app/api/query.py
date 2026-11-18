@@ -64,7 +64,8 @@ def _final_claims(run, diagnosis) -> list[dict[str, Any]]:
 
 def _run_agent_dispatch(store: GraphStore, req: QueryRequest, prior_facts: list[dict] | None = None,
                         inherited: dict[str, Any] | None = None,
-                        asked_checks: list[str] | None = None):
+                        asked_checks: list[str] | None = None,
+                        check_results: list[dict] | None = None):
     """Agent 执行入口：`useLlm` 且已配置 key 时走 LLM 驱动，否则确定性实现。
 
     `inherited` 是会话里带下来的槽位：追问句（「还是不行」）自己抽不出型号/错误码，
@@ -78,12 +79,13 @@ def _run_agent_dispatch(store: GraphStore, req: QueryRequest, prior_facts: list[
     if req.use_llm:
         from ..agent.llm_agent import run_llm
 
+        # 只问一次：答完这一轮就该给结论，继续追问会变成二十问
         return run_llm(store, question=req.question, model=model, code=code,
                        symptom=symptom, case_no=case_no, prior_facts=prior_facts,
-                       check_results=req.check_results, allow_ask=True,
+                       check_results=check_results, allow_ask=not asked_checks,
                        asked_checks=asked_checks)
     return agent_graph.run(store, question=req.question, model=model, code=code,
-                           symptom=symptom, case_no=case_no)
+                           symptom=symptom, case_no=case_no, check_results=check_results)
 
 
 def _divergence(rule_d, agent_d) -> dict[str, Any]:
@@ -126,6 +128,8 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
     if not any(slots.values()) and not session.slots and not req.check_results and req.mode == "rule":
         raise HTTPException(status_code=422, detail="未能从问题中识别出型号/错误码/症状，请补充结构化参数")
     events: list[dict[str, Any]] = []
+    # 本轮按钮答案 + 会话里累积的答案：不合并的话「第二次追问」会忘掉第一次的结论
+    check_results = list(session.check_results) + list(req.check_results or [])
 
     try:
         if req.mode == "agent":
@@ -133,9 +137,11 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             # 二次注入会让「型号未收录」标记被当成结构化参数覆盖掉。
             run = _run_agent_dispatch(store, req, prior_facts=session.facts,
                                       inherited=session.slots,
-                                      asked_checks=session.asked_checks)
+                                      asked_checks=session.asked_checks,
+                                      check_results=check_results)
             d = run.diagnosis
             sessions.add_facts(session, run.extra.get("facts") or [])
+            sessions.add_check_results(session, req.check_results)
             if run.extra.get("askUser"):
                 sessions.add_asked(session, [run.extra["askUser"]["checkId"]])
             session.last_run_id = run_id
@@ -171,12 +177,14 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                               model=slots["model"] or session.slots.get("model"),
                               code=slots["code"] or session.slots.get("code"),
                               symptom=slots["symptom"] or session.slots.get("symptom"),
-                              check_results=req.check_results)
+                              check_results=check_results)
             run = _run_agent_dispatch(store, req, prior_facts=session.facts,
                                       inherited=session.slots,
-                                      asked_checks=session.asked_checks)
+                                      asked_checks=session.asked_checks,
+                                      check_results=check_results)
             agent_d = run.diagnosis
             sessions.add_facts(session, run.extra.get("facts") or [])
+            sessions.add_check_results(session, req.check_results)
             if run.extra.get("askUser"):
                 sessions.add_asked(session, [run.extra["askUser"]["checkId"]])
             session.last_run_id = run_id
@@ -212,7 +220,8 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                          model=slots["model"] or session.slots.get("model"),
                          code=slots["code"] or session.slots.get("code"),
                          symptom=slots["symptom"] or session.slots.get("symptom"),
-                         check_results=req.check_results)
+                         check_results=check_results)
+            sessions.add_check_results(session, req.check_results)
             payload = QueryResponse(
                 runId=run_id, sessionId=session.session_id, mode="rule", status="ok", answer=d.answer,
                 confidence=d.confidence, claims=d.claims, warnings=d.warnings,

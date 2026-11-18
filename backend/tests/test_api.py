@@ -77,6 +77,23 @@ def test_follow_up_inherits_slots_from_session(client, model):
     assert second["status"] == "ok"
 
 
+def test_button_answer_without_question_is_accepted(client, model):
+    """追问按钮只带 sessionId + checkResults，没有新问句：不能当 422 打回去。"""
+    first = client.post("/api/query",
+                        json={"question": f"{model} 报 E11，左轮不转", "mode": "agent"}).json()
+    body = client.post("/api/query", json={
+        "mode": "agent", "sessionId": first["sessionId"],
+        "checkResults": [{"check": "CHK:SPIN-LEFT-WHEEL",
+                          "fault": "FAULT:LEFT-WHEEL-STUCK", "result": "negative"}],
+    })
+    assert body.status_code == 200, body.text
+    data = body.json()
+    assert data["sessionId"] == first["sessionId"]
+    # 阴性结论排除毛发根因后，首选检查必须收窄到轴承间隙
+    assert data["detail"]["checks"][0]["name"] == "检查轮组轴承间隙"
+
+
+
 def test_unknown_case_is_404(client):
     assert client.get("/api/cases/NOT-EXIST").status_code == 404
 

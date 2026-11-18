@@ -53,6 +53,7 @@ def run(
     symptom: str | None = None,
     use_reflection: bool = True,
     use_rules: bool = True,
+    check_results: list[dict[str, Any]] | None = None,
 ) -> AgentRun:
     """use_reflection / use_rules 是消融开关（文档 9.3 的 D / E 组），默认全开。
 
@@ -121,7 +122,8 @@ def run(
         result = execute(action)
         if result.tool == diag_tool and result.ok:
             diagnosis = diag_fn(store, case_no=slots.case_no, model=slots.model,
-                                code=slots.code, symptom=slots.symptom, question=question)
+                                code=slots.code, symptom=slots.symptom, question=question,
+                                check_results=check_results)
             # 规则层已判定查询落空，后续工具调用没有意义，提前结束规划
             if set(diagnosis.policies) & LOOKUP_POLICIES:
                 break
@@ -130,7 +132,8 @@ def run(
 
     if diagnosis is None:
         diagnosis = diag_fn(store, case_no=slots.case_no, model=slots.model,
-                            code=slots.code, symptom=slots.symptom, question=question)
+                            code=slots.code, symptom=slots.symptom, question=question,
+                            check_results=check_results)
 
     # 查询落空（跨型号串码 / 未知错误码 / 未知型号）：直接给出可解释结论，
     # 不做兼容性核查与覆盖度重试，否则会为「查不到」再花两三次工具调用。

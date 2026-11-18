@@ -29,6 +29,16 @@ def test_add_facts_dedupes_same_quote():
     assert len(s.facts) == 1
 
 
+def test_add_check_results_keeps_button_answers_across_turns():
+    """追问按钮的结论必须留在会话里：否则第二轮就忘了第一轮的回答。"""
+    store = SessionStore()
+    s = store.get_or_create(None)
+    answer = {"check": "CHK:SPIN-LEFT-WHEEL", "fault": "FAULT:LEFT-WHEEL-STUCK", "result": "negative"}
+    store.add_check_results(s, [answer, dict(answer)])
+    store.add_check_results(s, [{"check": None, "fault": None, "result": "positive"}])
+    assert len(s.check_results) == 1
+
+
 def test_expired_session_is_dropped():
     store = SessionStore(ttl=60)
     s = store.get_or_create(None)

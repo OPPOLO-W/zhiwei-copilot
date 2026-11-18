@@ -1,5 +1,7 @@
-const STATUS_LABEL = {
-  ok: ["ok", "推理完成"],
+import AskCard from "./AskCard.jsx";
+
+const STATUS_LABEL = {  ok: ["ok", "推理完成"],
+  needs_info: ["accent", "待确认"],
   degraded: ["warn", "降级回答"],
   out_of_scope: ["warn", "超出范围"],
   error: ["danger", "失败"],
@@ -23,7 +25,7 @@ const POLICY_LABEL = {
   out_of_scope: "超出范围",
 };
 
-export default function AnswerCard({ result, onEvidence }) {
+export default function AnswerCard({ result, onEvidence, onAnswer, loading }) {
   if (!result) {
     return (
       <div className="panel">
@@ -77,6 +79,8 @@ export default function AnswerCard({ result, onEvidence }) {
         </div>
 
         <div className="answer-text">{result.answer}</div>
+
+        {result.askUser && <AskCard askUser={result.askUser} onAnswer={onAnswer} disabled={loading} />}
 
         {safety.map((w, i) => (
           <div className="warn-box" key={`s${i}`}>

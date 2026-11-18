@@ -23,6 +23,8 @@ export default function App() {
   const [health, setHealth] = useState(null);
   const [rules, setRules] = useState(null);
   const [preset, setPreset] = useState("");
+  // 会话 id 由后端首次请求时生成；追问按钮回传它，后端才能继承槽位与已采信事实
+  const [sessionId, setSessionId] = useState(null);
 
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export default function App() {
   const inflight = useRef(false);
 
   const run = useCallback(
-    async (question, routeOverride) => {
+    async (question, routeOverride, answer) => {
       if (inflight.current) return;
       inflight.current = true;
       const r = routeOverride || route;
@@ -44,8 +46,16 @@ export default function App() {
       setActiveEvidence(null);
       setSelectedNode(null);
       try {
-        const data = await ask({ question, mode: modeOf(r), useLlm: llmOf(r) });
+        const data = await ask({
+          question,
+          mode: modeOf(r),
+          useLlm: llmOf(r),
+          sessionId,
+          // 追问答案：{checkId, faultId, result}，没有就是一次普通提问
+          checkResults: answer ? [answer] : null,
+        });
         setResult(data);
+        setSessionId(data.sessionId || null);
         // 每次对比都回到 Agent 侧，避免停留在上一次的规则子图
         if (modeOf(r) === "compare") setGraphSide("agent");
       } catch (err) {
@@ -55,7 +65,23 @@ export default function App() {
         setLoading(false);
       }
     },
-    [route]
+    [route, sessionId]
+  );
+
+  // 追问卡片点选后：把检查结果作为 button 型事实回传，并续用同一会话
+  const answerAsk = useCallback(
+    (askUser, option) => {
+      if (!askUser) return;
+      const result = option === "positive" ? "positive" : option === "negative" ? "negative" : "skip";
+      const checkId = askUser.checkId;
+      setResult((prev) => (prev ? { ...prev, askUser: null } : prev));
+      run(
+        null,
+        undefined,
+        result === "skip" ? { check: checkId, fault: askUser.faultId, result: "unknown" } : { check: checkId, fault: askUser.faultId, result }
+      );
+    },
+    [run]
   );
 
   // 支持深链演示：/?q=T20 PRO 报 E11&route=agent_llm
@@ -168,7 +194,12 @@ export default function App() {
           {isCompare ? (
             <CompareAnswers result={result} onEvidence={(id) => setActiveEvidence(id)} />
           ) : (
-            <AnswerCard result={result} onEvidence={(id) => setActiveEvidence(id)} />
+            <AnswerCard
+              result={result}
+              loading={loading}
+              onEvidence={(id) => setActiveEvidence(id)}
+              onAnswer={(opt) => answerAsk(result?.askUser, opt)}
+            />
           )}
         </div>
 

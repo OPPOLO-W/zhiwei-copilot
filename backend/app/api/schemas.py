@@ -26,7 +26,8 @@ class QueryRequest(BaseModel):
     @model_validator(mode="after")
     def _need_signal(self) -> "QueryRequest":
         # 多轮追问（「还是不行」）本身没有槽位，靠 session 继承，不能按无信号拒绝
-        if self.session_id and self.question:
+        # 追问按钮回传：只有 sessionId + checkResults，没有新问句
+        if self.session_id and (self.question or self.check_results):
             return self
         if not any([self.question, self.case_no, self.code, self.symptom]):
             raise ValueError("至少提供 question / caseNo / model+code / symptom 之一")

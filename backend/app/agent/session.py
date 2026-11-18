@@ -25,6 +25,8 @@ class Session:
     slots: dict[str, Any] = field(default_factory=dict)
     facts: list[dict[str, Any]] = field(default_factory=list)
     asked_checks: list[str] = field(default_factory=list)
+    # 追问按钮给出的检查结论：下一轮必须继续生效，否则「第二问」会把第一问的答案忘掉
+    check_results: list[dict[str, Any]] = field(default_factory=list)
     turn: int = 0
     last_run_id: str | None = None
     created_at: float = field(default_factory=time.time)
@@ -99,6 +101,17 @@ class SessionStore:
         for check_id in check_ids or []:
             if check_id and check_id not in session.asked_checks:
                 session.asked_checks.append(check_id)
+
+    def add_check_results(self, session: Session, results: list[dict[str, Any]] | None) -> None:
+        """追问按钮的结论按 (check, fault) 去重累积，后续每轮继续参与推理。"""
+        seen = {(r.get("check"), r.get("fault")) for r in session.check_results}
+        for result in results or []:
+            key = (result.get("check"), result.get("fault"))
+            if not all(key):
+                continue
+            if key not in seen:
+                session.check_results.append(dict(result))
+                seen.add(key)
 
     def clear(self) -> None:
         with self._lock:
