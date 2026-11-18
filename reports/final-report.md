@@ -430,6 +430,8 @@ B 组答出了正确故障名，但跳过了鉴别性检查，直接给出换件
 > （claims 回填 + `decision/expressed` 双评分 + 真 RAG 基线），P1 又加了候选重排，当前结论见
 > `reports/p0-attribution.md`、`reports/p1-rerank.md`、`reports/p2-multiturn.md`、
 > `reports/p3-exploration.md`。P3 后难题集首选方案 0.8667、50 题答案 1.00，详见后者。
+> P4 只做成本工程（反思门控 + 预算护栏 + 计量），答案与首选方案不变、P50 −2%~−10%，
+> 未达到 7–8 秒的目标，原因与下一步见 `reports/p4-cost.md`。
 
 前面 A~E 五组都是确定性路径。A3 阶段接入 LLM 后，`agent_llm` 一直是 opt-in、只做过单题冒烟，
 没有 50 题数据——这是一个真实的空缺：**简历与答辩里能说「接入了 LLM」，却说不出它带来了什么**。
@@ -522,7 +524,7 @@ python -m backend.app.kg.loader --reset     # → Neo4j
 # 3) 评测（五组 × 3 次）
 python -m backend.app.eval.run_eval --all --repeat 3
 # 4) 测试
-python -m pytest backend/tests -q            # 197 passed, 2 skipped
+python -m pytest backend/tests -q            # 200 passed, 2 skipped
 # 5) 起服务
 uvicorn backend.app.main:app --port 8000
 # 6) 前端
