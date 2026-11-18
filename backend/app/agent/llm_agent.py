@@ -418,6 +418,8 @@ def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
         "rejected": [],
         "evidenceHits": 0,
         "evidenceMiss": 0,
+        # 模型给排序的一句话理由，落进 trace 便于人工复核（不参与任何判定）
+        "note": (ranking.note if ranking else "") or "",
         "faults": [f["id"] for f in d.faults],
         "solutions": [s["id"] for s in d.solutions],
     }
