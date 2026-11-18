@@ -348,7 +348,7 @@ FAQ 29 条故障类，对齐 21 对——手册覆盖 83%，FAQ 覆盖 52%。
 ## 6. 测试
 
 ```bash
-python -m pytest backend/tests -q      # 99 passed, 2 skipped
+python -m pytest backend/tests -q      # 115 passed, 2 skipped（含 13 条 LLM mock 用例）
 ```
 
 覆盖：本体规模与继承、图谱规模/证据完整性/无孤立点、规则白名单与静态校验、
@@ -374,8 +374,9 @@ python -m backend.tools.gen_faq_review --check     # 案例审核台账：58 条
   没有现象也没有处置，留在 `Document` 层；判定与理由逐条写在
   `data/review/faq_cases.yaml`。图中 `FAQCase` 共 46 条 = 22 条官方原文（`official_faq`）
   + 24 条模板代理（`faq_template_proxy`，`needsReview=true`），按 `sourceType` 可分辨。
-- 未接 LLM 时 Agent 用确定性规划器（保证评测可复现）；`backend/app/llm/` 预留了
-  OpenAI 兼容客户端与本体引导抽取 Prompt 的位置，接入后可通过 `useLlm` 打开。
+- Agent 默认走确定性规划器（保证评测可复现）；`useLlm=true` 时切到 LLM 路径
+  （`backend/app/agent/llm_agent.py`，四节点 LLM 驱动、逐节点失败即回退确定性）。
+  LLM 路径是 opt-in，不参与 A~E 五组评测，故 A~E 的历史口径不受影响。
 - 合成案例/工单带 `dataProvenance=seed_generated`，全校验器单独统计合成占比，
   避免「用合成数据刷指标」。
 - 相似案例检索当前是「同型号同症状 + 时间窗」的确定性匹配，未做向量召回。
