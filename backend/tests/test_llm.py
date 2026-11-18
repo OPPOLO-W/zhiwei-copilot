@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from backend.app.agent import llm_agent
+from backend.app.agent import graph, llm_agent
 from backend.app.agent.slots import Slots, extract_slots
 from backend.app.config import Settings
 from backend.app.llm.client import LLMClient, LLMError, LLMUnavailable
-from backend.app.llm.prompts import SlotExtraction
+from backend.app.llm.prompts import RankPick, SlotExtraction
+from backend.app.reasoning.service import Diagnosis
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +119,9 @@ def _happy_handler(messages):
         return {"reasoning": "查相似案例", "calls": [], "done": True}
     if "覆盖度与缺口" in text:
         return {"coverage": {}, "conflicts": [], "missing": [], "decision": "stop", "next_calls": []}
+    if "在候选【内部】排序" in text:
+        # 默认不改变顺序：只回空列表，验证「无主张时保持规则原序」
+        return {"faults": [], "solutions": [], "note": ""}
     if "带引用的排查答复" in text:
         return {"answer": "最可能为驱动轮异常，建议先检查再考虑换件。",
                 "claims": [{"text": "驱动轮异常", "evidenceIds": ["E1"], "confidence": 0.8}],
@@ -226,3 +232,92 @@ def test_merge_coverage_downgrade_is_accepted():
     merged = llm_agent._merge_coverage(base, {"q3": "partial", "q4": "missing"})
     assert merged["q3"] == "partial"
     assert merged["q4"] == "missing"
+
+
+# ---------------------------------------------------------------------------
+# 候选重排（P1）：规则定候选，LLM 只决定先后，非法输入被拒
+# ---------------------------------------------------------------------------
+def _mk_diag(fault_ids, solution_ids, policies=(), warnings=()) -> Diagnosis:
+    evidence = [{"id": f"E{i}", "triple": [nid, "INDICATES", "PART:x"]}
+                for i, nid in enumerate(list(fault_ids) + list(solution_ids), start=1)]
+    return Diagnosis(
+        case_id="CASE:1", model="T20 PRO", symptoms=[],
+        faults=[{"id": nid, "name": f"故障{nid}"} for nid in fault_ids],
+        causes=[],
+        solutions=[{"id": nid, "name": f"方案{nid}"} for nid in solution_ids],
+        checks=[], warnings=list(warnings), policies=list(policies),
+        confidence=0.5, answer="", claims=[], evidence=evidence,
+        proof_tree=None, graph={}, trace={},
+    )
+
+
+def test_apply_ranking_reorders_only_within_candidates():
+    d = _mk_diag(["F1", "F2", "F3"], ["S1", "S2"])
+    audit = llm_agent._apply_ranking(d, llm_agent._Ranking(
+        faults=[RankPick(nodeId="F3"), RankPick(nodeId="F1"), RankPick(nodeId="F2")],
+        solutions=[RankPick(nodeId="S2"), RankPick(nodeId="S1")],
+        note="test"))
+    assert [f["id"] for f in d.faults] == ["F3", "F1", "F2"]
+    assert [s["id"] for s in d.solutions] == ["S2", "S1"]
+    assert audit["driver"] == "llm" and audit["rejected"] == []
+
+
+def test_apply_ranking_rejects_unknown_ids_and_keeps_all_candidates():
+    d = _mk_diag(["F1", "F2"], ["S1", "S2"])
+    audit = llm_agent._apply_ranking(d, llm_agent._Ranking(
+        faults=[RankPick(nodeId="FAKE"), RankPick(nodeId="F2")],
+        solutions=[RankPick(nodeId="S2")],
+        note=""))
+    assert audit["rejected"] == ["FAKE"]
+    # 重排不是删候选：LLM 没提到的 F1 / S1 仍按原序保留在末尾
+    assert [f["id"] for f in d.faults] == ["F2", "F1"]
+    assert [s["id"] for s in d.solutions] == ["S2", "S1"]
+
+
+def test_apply_ranking_locks_safety_solution():
+    d = _mk_diag(["F1"], ["停用并送修", "清洁滤网"], policies=["safety_stop"],
+                 warnings=["电池鼓包请立即停用"])
+    audit = llm_agent._apply_ranking(d, llm_agent._Ranking(
+        faults=[], solutions=[RankPick(nodeId="清洁滤网"), RankPick(nodeId="停用并送修")],
+        note=""))
+    assert d.solutions[0]["id"] == "停用并送修", "安全方案必须锁在首位"
+    assert audit["locked"] is True
+
+
+def test_apply_ranking_no_ranking_keeps_rule_order():
+    d = _mk_diag(["F1", "F2"], ["S1", "S2"])
+    audit = llm_agent._apply_ranking(d, None)
+    assert audit["driver"] == "rule"
+    assert [f["id"] for f in d.faults] == ["F1", "F2"]
+
+
+def _reverse_rank_handler(messages):
+    text = messages[-1]["content"]
+    if "在候选【内部】排序" not in text:
+        return _happy_handler(messages)
+    raw = text.split("<candidates>", 1)[1].split("</candidates>", 1)[0]
+    cands = json.loads(raw)
+    return {
+        "faults": [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
+                   for c in reversed(cands["faults"])],
+        "solutions": [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
+                      for c in reversed(cands["solutions"])],
+        "note": "reverse",
+    }
+
+
+def test_run_llm_applies_llm_ranking(store, model, monkeypatch):
+    """重排结果必须进入 diagnosis，否则下游指标仍然看不见 LLM 的选择。"""
+    q = f"{model} 报 E11，左轮不转"
+    baseline = graph.run(store, question=q).diagnosis
+
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_reverse_rank_handler))
+    run = llm_agent.run_llm(store, question=q)
+
+    rank_steps = [t for t in run.trace if t["node"] == "rank"]
+    assert rank_steps and rank_steps[0]["driver"] == "llm"
+    if len(baseline.faults) >= 2:
+        assert run.diagnosis.faults[0]["id"] == baseline.faults[-1]["id"]
+        assert run.diagnosis.faults[-1]["id"] == baseline.faults[0]["id"]
+    if len(baseline.solutions) >= 2:
+        assert run.diagnosis.solutions[0]["id"] == baseline.solutions[-1]["id"]

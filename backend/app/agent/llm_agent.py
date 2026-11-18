@@ -7,6 +7,7 @@
   * plan/act —— 规则骨干 `run_rules` 固定先跑（安全/网络规则兜底），
     之后 LLM 从白名单里选补充工具，参数只能取自已识别槽位与已收集证据；
   * reflect —— LLM 按 q1~q5 给覆盖度与缺口，决定 continue/stop；
+  * rank —— 规则给定候选故障/方案，LLM 只在候选内排序（不得增删，安全方案锁首位）；
   * finalize —— LLM 生成带 evidenceId 引用的答复，规则告警与免责声明强制保留。
 
 健壮性（文档 8.10）：
@@ -29,11 +30,13 @@ from ..llm.prompts import (
     Claim,
     FinalAnswerOutput,
     PlanOutput,
+    RankOutput,
     ReflectionOutput,
     SlotExtraction,
     decompose_prompt,
     finalize_prompt,
     plan_prompt,
+    rank_prompt,
     reflect_prompt,
 )
 from ..reasoning.graph_only import diagnose_graph_only
@@ -211,6 +214,15 @@ def run_llm(
                 compat.append(result.data)
         coverage = _deterministic._coverage(diagnosis, similar)
 
+    # ---------- rank：规则定候选，LLM 只在候选内排序（P1）----------
+    # 放在探索之后、finalize 之前：此时候选集与相似案例都已就绪，
+    # 重排结果既影响最终答案，也直接进入 diagnosis（下游指标可观测）。
+    calls_before_rank = llm_usage["calls"]
+    ranking = _rank(client, store, question or "", slots, diagnosis, llm_usage)
+    audit = _apply_ranking(diagnosis, ranking)
+    audit["llmDriven"] = llm_usage["calls"] > calls_before_rank
+    step("rank", **audit)
+
     # ---------- verify：确定性规则校验（安全/网络/不兼容），不交给 LLM ----------
     issues = _deterministic._verify(diagnosis, similar, compat)
     step("verify", issues=issues, policies=diagnosis.policies)
@@ -330,6 +342,115 @@ def _reflect(client: LLMClient, store: GraphStore, question: str, slots: Slots,
     except (LLMError, ValueError, TypeError) as exc:
         log.warning("LLM 反思失败，回退确定性覆盖度: %s", exc)
         return None
+
+
+@dataclass
+class _Ranking:
+    """LLM 给出的候选顺序（nodeId 列表）。
+
+    这里只保留「顺序」而不是整条候选记录：重排的权限仅限于先后，
+    候选集合、分数、证据都由规则与图决定，LLM 不得增删改写。
+    """
+
+    faults: list[Any]
+    solutions: list[Any]
+    note: str = ""
+
+
+_RANK_MAX = 4
+
+
+def _candidate_evidence(d: Diagnosis, node_id: str) -> list[str]:
+    """某候选节点在证据清单里出现的编号，用来约束 LLM 只能引用已有证据。"""
+    return [e["id"] for e in d.evidence if node_id in (e.get("triple") or [])]
+
+
+def _candidates(d: Diagnosis) -> dict[str, list[dict[str, Any]]]:
+    """喂给 LLM 的候选清单：只给 id/名称/分数/可用证据编号。"""
+    return {
+        "faults": [
+            {"nodeId": f["id"], "name": f["name"], "confidence": f.get("confidence"),
+             "evidenceIds": _candidate_evidence(d, f["id"])}
+            for f in d.faults[:_RANK_MAX]
+        ],
+        "solutions": [
+            {"nodeId": s["id"], "name": s["name"], "score": s.get("score"),
+             "riskLevel": s.get("riskLevel"), "evidenceIds": _candidate_evidence(d, s["id"])}
+            for s in d.solutions[:_RANK_MAX]
+        ],
+    }
+
+
+def _rank(client: LLMClient, store: GraphStore, question: str, slots: Slots,
+          d: Diagnosis, usage: dict[str, Any]) -> _Ranking | None:
+    cands = _candidates(d)
+    if len(cands["faults"]) < 2 and len(cands["solutions"]) < 2:
+        # 只有唯一候选时排序没有信息量，省掉一次调用
+        return None
+    try:
+        data = client.chat_json(
+            rank_prompt(store, question, slots.to_dict(), cands,
+                        {"warnings": d.warnings, "policies": d.policies}),
+            max_tokens=900,
+        )
+        out = RankOutput.model_validate(data)
+        _bump(usage, client)
+        return _Ranking(faults=list(out.faults), solutions=list(out.solutions), note=out.note)
+    except (LLMError, ValueError, TypeError) as exc:
+        log.warning("LLM 候选重排失败，保留规则顺序: %s", exc)
+        return None
+
+
+def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
+    """按 LLM 给出的顺序重排 diagnosis 的候选；不增不删，非法项记入 rejected。
+
+    安全边界：`safety_stop` 生效时，规则选出的首选方案被锁在第一位，
+    LLM 只能调整其余方案——安全结论不参与「更懂用户」的权衡。
+    """
+    audit: dict[str, Any] = {
+        "driver": "llm" if ranking else "rule",
+        "locked": False,
+        "rejected": [],
+        "evidenceHits": 0,
+        "evidenceMiss": 0,
+        "faults": [f["id"] for f in d.faults],
+        "solutions": [s["id"] for s in d.solutions],
+    }
+    if ranking is None:
+        return audit
+
+    for field, picks in (("faults", ranking.faults), ("solutions", ranking.solutions)):
+        items = getattr(d, field)
+        if len(items) < 2 or not picks:
+            continue
+        index = {it["id"]: it for it in items}
+        allowed = {it["id"]: set(_candidate_evidence(d, it["id"])) for it in items}
+        ordered: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for pick in picks:
+            node_id = str(getattr(pick, "nodeId", "") or "")
+            if node_id not in index:
+                audit["rejected"].append(node_id)
+                continue
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            ordered.append(index[node_id])
+            for ev in getattr(pick, "evidenceIds", None) or []:
+                if ev in allowed[node_id]:
+                    audit["evidenceHits"] += 1
+                else:
+                    audit["evidenceMiss"] += 1
+        # LLM 没提到的候选按规则原序接在后面：重排不是删候选
+        ordered.extend(it for it in items if it["id"] not in seen)
+        if field == "solutions" and "safety_stop" in d.policies:
+            head = items[0]
+            if ordered[0]["id"] != head["id"]:
+                audit["locked"] = True
+                ordered = [head] + [it for it in ordered if it["id"] != head["id"]]
+        setattr(d, field, ordered)
+        audit[field] = [it["id"] for it in ordered]
+    return audit
 
 
 @dataclass

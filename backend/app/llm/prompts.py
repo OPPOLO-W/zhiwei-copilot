@@ -75,6 +75,22 @@ class FinalAnswerOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class RankPick(BaseModel):
+    """候选排序中的一项：只能引用候选清单里出现过的 nodeId 与证据编号。"""
+
+    nodeId: str = Field(description="候选节点 ID，必须来自候选清单")
+    evidenceIds: list[str] = Field(default_factory=list, description="来自候选条目的证据编号")
+    reason: str = Field(default="", description="一句话说明为什么排在这个位置")
+
+
+class RankOutput(BaseModel):
+    """候选重排：规则定候选集合，LLM 只在集合内决定先后。"""
+
+    faults: list[RankPick] = Field(default_factory=list)
+    solutions: list[RankPick] = Field(default_factory=list)
+    note: str = Field(default="", description="排序依据摘要")
+
+
 # ---------------------------------------------------------------------------
 # 图上下文（紧凑注入）
 # ---------------------------------------------------------------------------
@@ -267,6 +283,39 @@ def finalize_prompt(
                 "- 不确定的地方明确说「不确定」，不要把相似案例说成因果；\n"
                 "- warnings 保留规则引擎给出的安全/保修告警原文，不要删减。\n"
                 "按以下 JSON Schema 输出：\n" + _dump(FinalAnswerOutput.model_json_schema())
+            ),
+        },
+    ]
+
+
+def rank_prompt(
+    store: GraphStore,
+    question: str,
+    slots: dict[str, Any],
+    candidates: dict[str, Any],
+    context: dict[str, Any],
+) -> list[dict[str, str]]:
+    """候选重排：候选集合由规则给定，LLM 只决定顺序与理由。"""
+    return [
+        {"role": "system", "content": system_prompt(store)},
+        {
+            "role": "user",
+            "content": (
+                "规则引擎已经给出候选故障与候选方案。你的任务是在候选【内部】排序，"
+                "判断哪个最可能、哪个最该先做。\n"
+                "【用户问题】\n<question>\n" + question + "\n</question>\n"
+                "【已识别槽位】\n" + _dump(slots) + "\n"
+                "【候选清单】\n<candidates>\n" + _dump(candidates) + "\n</candidates>\n"
+                "【规则告警与策略】\n<context>\n" + _dump(context) + "\n</context>\n"
+                "排序规则：\n"
+                "- 只能重排，不能新增、删除或改写候选：faults / solutions 必须原样列出清单中的"
+                "全部 nodeId，每个恰好一次；\n"
+                "- faults 按「最可能的故障」排；solutions 按「最先该执行的方案」排；\n"
+                "- evidenceIds 只能引用候选条目自带的证据编号，不得自造；reason 一句话即可；\n"
+                "- 若规则告警含「停止使用/转官方售后」等安全边界，对应的安全方案必须排第一，"
+                "其余方案才可调整；\n"
+                "- 没有把握时保持清单原顺序——原顺序即规则结论。\n"
+                "按以下 JSON Schema 输出：\n" + _dump(RankOutput.model_json_schema())
             ),
         },
     ]

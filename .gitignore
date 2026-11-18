@@ -18,4 +18,4 @@ var/
 .screenshots/
 
 # pytest 临时目录（本机 TEMP 不可写时用 --basetemp 落到仓库内）
-.pytest-tmp/
+.pytest-tmp*/
