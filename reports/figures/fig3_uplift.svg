@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="420" viewBox="0 0 860 420" font-family="-apple-system, Segoe UI, Microsoft YaHei, sans-serif">
+<rect width="860" height="420" fill="#ffffff"/>
+<text x="70.0" y="34.0" font-size="13" fill="#0f172a" text-anchor="start" font-weight="600">首选方案正确率（难题集 20 题）</text>
+<line x1="70" y1="286.7" x2="400" y2="286.7" stroke="#e2e8f0"/>
+<text x="60.0" y="290.7" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">0.4</text>
+<line x1="70" y1="220.0" x2="400" y2="220.0" stroke="#e2e8f0"/>
+<text x="60.0" y="224.0" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">0.6</text>
+<line x1="70" y1="153.3" x2="400" y2="153.3" stroke="#e2e8f0"/>
+<text x="60.0" y="157.3" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">0.8</text>
+<line x1="70" y1="86.7" x2="400" y2="86.7" stroke="#e2e8f0"/>
+<text x="60.0" y="90.7" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">1.0</text>
+<line x1="70" y1="320" x2="400" y2="320" stroke="#94a3b8"/>
+<line x1="70" y1="70" x2="70" y2="320" stroke="#94a3b8"/>
+<polyline points="103.0,286.7 169.0,242.3 235.0,131.0 301.0,131.0 367.0,131.0" fill="none" stroke="#2563eb" stroke-width="2.5"/>
+<circle cx="103.0" cy="286.7" r="5" fill="#2563eb"/>
+<text x="103.0" y="274.7" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">0.400</text>
+<circle cx="169.0" cy="242.3" r="5" fill="#2563eb"/>
+<text x="169.0" y="230.3" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">0.533</text>
+<circle cx="235.0" cy="131.0" r="5" fill="#2563eb"/>
+<text x="235.0" y="119.0" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">0.867</text>
+<circle cx="301.0" cy="131.0" r="5" fill="#2563eb"/>
+<text x="301.0" y="119.0" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">0.867</text>
+<circle cx="367.0" cy="131.0" r="5" fill="#2563eb"/>
+<text x="367.0" y="119.0" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">0.867</text>
+<text x="78.0" y="310.0" font-size="10" fill="#b91c1c" text-anchor="start" font-weight="400">规则路径 0.000</text>
+<text x="103.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">起点</text>
+<text x="103.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">(阶段B后)</text>
+<text x="169.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P1</text>
+<text x="169.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">候选重排</text>
+<text x="235.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P2-P3</text>
+<text x="235.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">事实+证据</text>
+<text x="301.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P4</text>
+<text x="301.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">成本门控</text>
+<text x="367.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P5</text>
+<text x="367.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">规则计划</text>
+<text x="520.0" y="34.0" font-size="13" fill="#0f172a" text-anchor="start" font-weight="600">单题时延 P50（毫秒，越低越好）</text>
+<line x1="520" y1="320.0" x2="810" y2="320.0" stroke="#e2e8f0"/>
+<text x="510.0" y="324.0" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">0</text>
+<line x1="520" y1="236.7" x2="810" y2="236.7" stroke="#e2e8f0"/>
+<text x="510.0" y="240.7" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">4000</text>
+<line x1="520" y1="153.3" x2="810" y2="153.3" stroke="#e2e8f0"/>
+<text x="510.0" y="157.3" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">8000</text>
+<line x1="520" y1="70.0" x2="810" y2="70.0" stroke="#e2e8f0"/>
+<text x="510.0" y="74.0" font-size="11" fill="#64748b" text-anchor="end" font-weight="400">12000</text>
+<line x1="520" y1="320" x2="810" y2="320" stroke="#94a3b8"/>
+<line x1="520" y1="70" x2="520" y2="320" stroke="#94a3b8"/>
+<rect x="535.7" y="90.4" width="26.7" height="229.6" fill="#93c5fd" rx="3"/>
+<text x="549.0" y="82.4" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">11021</text>
+<rect x="593.7" y="71.1" width="26.7" height="248.9" fill="#93c5fd" rx="3"/>
+<text x="607.0" y="63.1" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">11948</text>
+<rect x="651.7" y="126.8" width="26.7" height="193.2" fill="#93c5fd" rx="3"/>
+<text x="665.0" y="118.8" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">9276</text>
+<rect x="709.7" y="131.2" width="26.7" height="188.8" fill="#93c5fd" rx="3"/>
+<text x="723.0" y="123.2" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">9062</text>
+<rect x="767.7" y="187.0" width="26.7" height="133.0" fill="#93c5fd" rx="3"/>
+<text x="781.0" y="179.0" font-size="11" fill="#1d4ed8" text-anchor="middle" font-weight="600">6384</text>
+<text x="549.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">起点</text>
+<text x="549.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">(阶段B后)</text>
+<text x="607.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P1</text>
+<text x="607.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">候选重排</text>
+<text x="665.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P2-P3</text>
+<text x="665.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">事实+证据</text>
+<text x="723.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P4</text>
+<text x="723.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">成本门控</text>
+<text x="781.0" y="342.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">P5</text>
+<text x="781.0" y="357.0" font-size="11" fill="#334155" text-anchor="middle" font-weight="400">规则计划</text>
+<text x="24.0" y="408.0" font-size="10" fill="#94a3b8" text-anchor="start" font-weight="400">数据：var/eval/agent_llm_20261118_130844 / 134922 / 191753 / 195135 / 214744（memory 后端，单次运行）</text>
+</svg>
