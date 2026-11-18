@@ -152,6 +152,12 @@ def system_prompt(store: GraphStore) -> str:
 
 def decompose_prompt(store: GraphStore, question: str) -> list[dict[str, str]]:
     schema = SlotExtraction.model_json_schema()
+    # 症状改成「从清单里选」而不是「用原文措辞」。
+    # 原写法下口语题（「拖布支架老是掉」「烫得不敢碰」）返回的是用户原话，
+    # 下游要用它去 store.search 命中节点，命中不了就等于没抽到——
+    # 实测 5 道口语题 0/5 全部落到「请补充症状」。给清单等于把生成题变成分类题，
+    # 既提高召回，也天然满足「不得编造实体」。
+    symptom_names = "、".join(sorted({n.name for n in store.nodes("Symptom") if n.name}))
     return [
         {"role": "system", "content": system_prompt(store)},
         {
@@ -159,10 +165,13 @@ def decompose_prompt(store: GraphStore, question: str) -> list[dict[str, str]]:
             "content": (
                 "从下面这条用户问题中抽取故障排查槽位。\n"
                 "【用户问题】\n<question>\n" + question + "\n</question>\n"
+                "【图谱症状清单】（symptom 只能从这里选）\n" + symptom_names + "\n"
                 "抽取规则：\n"
                 "- model：型号代码（如 T20 PRO、T20）。只填图谱覆盖的型号；不确定就置 null。\n"
                 "- code：错误码，E 开头两位或 100 开头的四位（如 E11、10010）；没有就 null。\n"
-                "- symptom：现象/症状名（如「左轮不转」），用问题原文措辞；没有就 null。\n"
+                "- symptom：从上面【图谱症状清单】里选语义最贴近的一个，原样输出该名称；"
+                "用户口语与清单用词不同时按语义对应（例：「支架老是掉」→「拖布支架松动」，"
+                "「烫得不敢碰」→「电池发热」）；清单里没有一个接近的，置 null，不要自造症状名。\n"
                 "- environment：使用环境，只能是 PET/LONG-HAIR/CARPET/DUPLEX/LARGE-HOME 之一，没有就 null。\n"
                 "- intent：troubleshoot / network / safety 之一（提到配网、连不上、wifi 用 network；提到鼓包/漏液/冒烟等用 safety）。\n"
                 "- safety_hint：是否含电池鼓包/漏液/冒烟/起火/过热/进水/异味等高风险词。\n"

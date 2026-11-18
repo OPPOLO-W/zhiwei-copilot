@@ -13,6 +13,7 @@
 - 答辩演示脚本：[`docs/demo-script.md`](docs/demo-script.md)
 - **可靠性提升计划：[`docs/uplift-plan.md`](docs/uplift-plan.md)**（三阶段：题集与硬幻觉指标 → 受约束事实回传 → 带证据的复核；含通过标准与 git 回退点）
 - **难题集基线：[`reports/uplift-baseline.md`](reports/uplift-baseline.md)**（20 题定向抽样 × 4 系统 × 3 重复，含编造/悬空/越界/安全四项检测）
+- **阶段 B：[`reports/uplift-stage-b.md`](reports/uplift-stage-b.md)**（口语症状改白名单归类：答案准确率 0.60→0.90，首选方案 0.07→0.40，幻觉四项仍为 0）
 - 图谱规模：**432 实体 / 1028 关系**（课程要求 ≥60 / ≥120）
 - 推理规则：**24 条**声明式规则（课程要求 ≥20）
 - 评测集：**50 题**（单跳 10 / 两跳 11 / 多跳 13 / 歧义 5 / 型号范围 4 / 安全 4 / 超范围 3）
