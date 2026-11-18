@@ -428,7 +428,8 @@ B 组答出了正确故障名，但跳过了鉴别性检查，直接给出换件
 > **这一节的「逐位相同」是 P0 之前的代码状态，现在已不成立。** 当时评测器把 LLM 路径的
 > fault/solution/claims 全部取自规则结构，LLM 只改答案文本，所以指标必然相同；P0 修掉了这个口径
 > （claims 回填 + `decision/expressed` 双评分 + 真 RAG 基线），P1 又加了候选重排，当前结论见
-> `reports/p0-attribution.md`、`reports/p1-rerank.md`、`reports/p2-multiturn.md`。
+> `reports/p0-attribution.md`、`reports/p1-rerank.md`、`reports/p2-multiturn.md`、
+> `reports/p3-exploration.md`。P3 后难题集首选方案 0.8667、50 题答案 1.00，详见后者。
 
 前面 A~E 五组都是确定性路径。A3 阶段接入 LLM 后，`agent_llm` 一直是 opt-in、只做过单题冒烟，
 没有 50 题数据——这是一个真实的空缺：**简历与答辩里能说「接入了 LLM」，却说不出它带来了什么**。
@@ -498,6 +499,8 @@ LLM 的 `ReflectionOutput.coverage` 不强制给全 q1~q5，只回 `{"q3": "miss
 | 「LLM 零增益」的旧结论已作废 | P0 发现原评测器只采信规则结构（§8.5 顶部说明）；修口径后 50 题 topSolution 0.79→0.86、难题集 0/15→8/15 | 见 `reports/p0-attribution.md`、`reports/p1-rerank.md` |
 | 追问只问一次 | `session.asked_checks` 非空即不再追问；H14 答完收窄到轴承间隙，但没有第二问 | 若要二问，先补图谱里 `CONFIRMED_BY` 的检查项覆盖（E23 只有一条根因就是例子） |
 | H05 首选仍是「转官方售后」 | 种子置信度 `ESCALATE-SERVICE` 0.70 > `REPLACE-LDS` 0.60 | 这是规则偏好而非 LLM 能力；改 cf 会牵动全部方案排序，留作开放项 |
+| 故障无法直连手册 | `DOCUMENTED_IN` 只覆盖 29/36 方案、22/46 案例，`Fault/Cause/Check` 为 0 | P3 只能给「相关方案的手册段落」；要给「故障→页」，需抽取层补故障级文档边 |
+| 文档检索是词面匹配 | `search_documents` 用 BM25（中文 bigram），同义说法召回不稳 | 换向量检索或加同义词表；当前 50 题里 49 题用到该工具，未因此掉分 |
 | 无人工双盲评分 | Explainability Score 与 kappa 无数据 | 需两人盲评 50 题 × 5 组，工作量大，本轮未做 |
 | 抽象类计数为 0 | `Case` 自身 0 实例 | 多标签建模的必然结果，非缺数据（`docs/ontology.md` 已注明） |
 
@@ -519,7 +522,7 @@ python -m backend.app.kg.loader --reset     # → Neo4j
 # 3) 评测（五组 × 3 次）
 python -m backend.app.eval.run_eval --all --repeat 3
 # 4) 测试
-python -m pytest backend/tests -q            # 191 passed, 2 skipped
+python -m pytest backend/tests -q            # 197 passed, 2 skipped
 # 5) 起服务
 uvicorn backend.app.main:app --port 8000
 # 6) 前端

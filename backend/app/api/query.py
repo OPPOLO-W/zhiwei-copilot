@@ -62,6 +62,21 @@ def _final_claims(run, diagnosis) -> list[dict[str, Any]]:
     return claims or diagnosis.claims
 
 
+def _with_doc_evidence(diagnosis, run) -> list[dict[str, Any]]:
+    """图谱边证据 + 工具取到的手册正文。
+
+    P3 之后 LLM 的 claim 可以引用 chunkId（如 DOC:T20PRO-MANUAL#p3c2）指向手册原文；
+    响应里的 evidence 必须包含这些条目，否则前端点 claim 找不到对应行。
+    """
+    items = list(diagnosis.evidence)
+    seen = {str(e.get("id")) for e in items}
+    for item in (getattr(run, "extra", None) or {}).get("docEvidence") or []:
+        if item.get("id") and str(item["id"]) not in seen:
+            seen.add(str(item["id"]))
+            items.append(item)
+    return items
+
+
 def _run_agent_dispatch(store: GraphStore, req: QueryRequest, prior_facts: list[dict] | None = None,
                         inherited: dict[str, Any] | None = None,
                         asked_checks: list[str] | None = None,
@@ -152,7 +167,7 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                 confidence=d.confidence, claims=_final_claims(run, d),
                 warnings=_merge_warnings(run.warnings, d.warnings),
                 graph=d.graph, proof={"mode": "agent", "derivationTree": d.proof_tree},
-                trace=run.trace, evidence=d.evidence, slots=run.slots,
+                trace=run.trace, evidence=_with_doc_evidence(d, run), slots=run.slots,
                 detail={
                     "subQuestions": run.sub_questions, "coverage": run.coverage,
                     "reflections": run.reflections, "toolResults": run.tool_results,
@@ -202,7 +217,7 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                 claims=agent_payload["claims"],
                 warnings=sorted(set(rule_d.warnings + agent_payload["warnings"])),
                 graph=agent_d.graph, proof={"mode": "hybrid", "derivationTree": rule_d.proof_tree},
-                trace=run.trace, evidence=agent_d.evidence, slots=run.slots,
+                trace=run.trace, evidence=_with_doc_evidence(agent_d, run), slots=run.slots,
                 askUser=run.extra.get("askUser"),
                 ruleResult=rule_d.to_dict(), agentResult=agent_payload,
                 detail={"coverage": run.coverage, "toolResults": run.tool_results,

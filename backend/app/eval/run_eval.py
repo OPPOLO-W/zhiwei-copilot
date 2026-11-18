@@ -100,7 +100,12 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
         "claims": llm_claims or d.claims,
         "claimsSource": "llm" if llm_claims else "rule",
         "checkNames": [c["name"] for c in d.checks],
-        "evidenceIds": _evidence_ids(d),
+        # 引用白名单 = 图边证据 E* + 工具取到的手册片段 chunkId。
+        # 不合并的话，P3 起答案引用的 `DOC:...#p28r15` 会被一律判成悬空，
+        # 指标会把「引用了真实原文」误记成「编编号」。
+        "evidenceIds": sorted(set(_evidence_ids(d)) | {
+            str(e.get("id")) for e in (run.extra or {}).get("docEvidence") or [] if e.get("id")
+        }),
         "latencyMs": 0,
         "rankDriver": (rank or {}).get("driver"),
         "rankLocked": (rank or {}).get("locked"),
@@ -115,7 +120,7 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
             if t.get("tool") in ("get_document_span", "search_documents")
         ]),
         "unsupportedClaims": int((run.extra or {}).get("unsupportedClaims") or 0),
-        "docEvidence": int((run.extra or {}).get("docEvidence") or 0),
+        "docEvidence": len((run.extra or {}).get("docEvidence") or []),
         # 字段名沿用历史口径：确定性系统统计的是覆盖度重试轮次（retry），
         # agent_llm 系统统计的才是 LLM 语义反思轮次（reflect）。
         "reflectionRounds": len(run.reflections),

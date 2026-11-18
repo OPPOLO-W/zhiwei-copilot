@@ -302,7 +302,7 @@ def run_llm(
                "unknownModel": slots.model_unknown, "llm": llm_usage,
                "claimsSource": claims_source, "askUser": ask_payload,
                "unsupportedClaims": final.droppedClaims,
-               "docEvidence": len(doc_ev),
+               "docEvidence": doc_ev,
                # 供 API 写回会话：跨轮事实必须能累积，否则第二轮又是从零开始
                "facts": facts, "rejectedFacts": rejected_facts},
     )
