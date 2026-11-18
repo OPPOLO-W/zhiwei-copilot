@@ -446,3 +446,32 @@ def test_run_llm_does_not_ask_by_default(store, model, monkeypatch):
     run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
     assert run.status == "ok"
     assert run.extra.get("askUser") is None
+
+
+def test_run_llm_records_per_step_latency(store, model, monkeypatch):
+    """每一步都要有 ms，否则「一次查询 10 秒花在哪」只能靠猜。"""
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
+    run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
+    assert run.trace
+    assert all(isinstance(s.get("ms"), int) for s in run.trace), run.trace
+    assert run.trace[-1]["ms"] >= 0
+
+
+def test_run_llm_stops_reflecting_when_budget_exhausted(store, model, monkeypatch):
+    """预算见底时必须停探索：宁可少一轮反思，也要把额度留给 finalize。"""
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
+    real = llm_agent.get_settings()
+
+    class _Tight:
+        # 0 预算 → 任何已用 token（含 0）都超过 80% 阈值；fake client 不报 usage，
+        # 用正数预算反而永远触发不了护栏
+        agent_token_budget = 0
+        agent_max_steps = real.agent_max_steps
+        agent_max_reflections = real.agent_max_reflections
+
+    monkeypatch.setattr(llm_agent, "get_settings", lambda: _Tight)
+    run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
+    assert run.answer, "省调用不能省答案"
+    assert not [s for s in run.trace
+                if s.get("node") == "reflect" and s.get("driver") == "llm"], run.trace
+    assert any(s.get("skipped") == "budget" for s in run.trace)

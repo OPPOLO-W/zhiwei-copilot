@@ -86,10 +86,16 @@ def run_llm(
     diag_fn = diagnose if use_rules else diagnose_graph_only
     diag_tool = "run_rules" if use_rules else "retrieve_chain"
     llm_usage = {"model": client.model, "calls": 0, "tokens": 0}
+    _last_step = [started]
 
     def step(node: str, **payload: Any) -> None:
+        # ms = 距上一步的真实耗时；latencyMs 是累计值。P4 起两者都记，
+        # 否则「一次查询 10 秒」只能看到总数，看不出是哪一步贵。
+        now = time.perf_counter()
         trace.append({"node": node,
-                      "latencyMs": int((time.perf_counter() - started) * 1000), **payload})
+                      "ms": int((now - _last_step[0]) * 1000),
+                      "latencyMs": int((now - started) * 1000), **payload})
+        _last_step[0] = now
 
     # ---------- intake / decompose：确定性抽取 + LLM 解耦取并 ----------
     base = extract_slots(store, question or "")
@@ -205,8 +211,17 @@ def run_llm(
     coverage = _deterministic._coverage(diagnosis, similar)
     reflections: list[dict[str, Any]] = []
     rounds = 0
+    # P4.1：确定性路径已经全覆盖时，再追问一次「还缺什么」只会拿到空清单，
+    # 却要付一次完整的 LLM 往返（50 题里的单跳/两跳题基本都落在这里）。
+    if use_reflection and all(v == "covered" for v in coverage.values()):
+        step("reflect", skipped="coverage_complete")
     while (use_reflection and rounds < settings.agent_max_reflections
-           and steps_used < settings.agent_max_steps):
+           and steps_used < settings.agent_max_steps
+           and not all(v == "covered" for v in coverage.values())):
+        # P4.2 预算护栏：正常查询用不到 80%，重试/长上下文时能兜住成本
+        if llm_usage["tokens"] >= settings.agent_token_budget * 0.8:
+            step("reflect", skipped="budget")
+            break
         summary = _evidence_summary(diagnosis, similar, compat, store, _tool_notes(results))
         refl = _reflect(client, store, question or "", slots, summary, llm_usage)
         driver = "llm"
@@ -222,6 +237,7 @@ def run_llm(
         # 缺失键被算作未覆盖，人为压低指标；而 LLM 也不该有权把确定性已覆盖的子问题
         # 凭空判成 covered。规则：以确定性计算为基线，LLM 只能下调（发现缺口），不能上调。
         coverage = _merge_coverage(coverage, refl.coverage)
+        judged = dict(coverage)
         reflections.append({
             "round": rounds + 1, "coverage": dict(coverage),
             "conflicts": list(refl.conflicts),
@@ -249,6 +265,10 @@ def run_llm(
             elif result.tool == "check_compatibility" and result.ok and result.data:
                 compat.append(result.data)
         coverage = _deterministic._coverage(diagnosis, similar)
+        # P4.1：这轮工具没带来任何新证据 → 再反思一次只会把同一批缺口再说一遍
+        if coverage == judged:
+            step("reflect", stopped="no_progress", round=rounds)
+            break
 
     # ---------- rank：规则定候选，LLM 只在候选内排序（P1）----------
     # 放在探索之后、finalize 之前：此时候选集与相似案例都已就绪，
@@ -555,6 +575,9 @@ def _rank(client: LLMClient, store: GraphStore, question: str, slots: Slots,
     cands = _candidates(d)
     if len(cands["faults"]) < 2 and len(cands["solutions"]) < 2:
         # 只有唯一候选时排序没有信息量，省掉一次调用
+        return None
+    if usage.get("tokens", 0) >= get_settings().agent_token_budget * 0.8:
+        # P4.2 预算护栏：已经花掉八成预算，重排是「锦上添花」，优先保住 finalize
         return None
     try:
         data = client.chat_json(

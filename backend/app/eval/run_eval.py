@@ -120,6 +120,9 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
             if t.get("tool") in ("get_document_span", "search_documents")
         ]),
         "unsupportedClaims": int((run.extra or {}).get("unsupportedClaims") or 0),
+        # P4：成本与调用次数必须逐题落盘，否则「优化后更快」只是感觉
+        "llmCalls": int(((run.extra or {}).get("llm") or {}).get("calls") or 0),
+        "llmTokens": int(((run.extra or {}).get("llm") or {}).get("tokens") or 0),
         "docEvidence": len((run.extra or {}).get("docEvidence") or []),
         # 字段名沿用历史口径：确定性系统统计的是覆盖度重试轮次（retry），
         # agent_llm 系统统计的才是 LLM 语义反思轮次（reflect）。
@@ -313,6 +316,8 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             "docToolCalls": out.get("docToolCalls"),
             "unsupportedClaims": out.get("unsupportedClaims"),
             "docEvidence": out.get("docEvidence"),
+            "llmCalls": out.get("llmCalls"),
+            "llmTokens": out.get("llmTokens"),
             "reflectionRounds": out.get("reflectionRounds"),
             "latencyMs": out["latencyMs"],
         })
