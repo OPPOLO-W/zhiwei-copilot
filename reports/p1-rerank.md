@@ -36,8 +36,9 @@
   - `_apply_ranking(d, ranking)` 是**验证器**，不是解析器：候选集外的 `nodeId` 记 `rejected` 并丢弃，
     重复项跳过，`evidenceIds` 不属于该节点的记 `evidenceMiss`，模型漏掉的候选按规则原序补回末尾，
     `safety_stop` 生效时把规则首选锁回第一位（`locked=true`）；
-  - trace 记录 `rank` 步的 `driver / locked / rejected / evidenceMiss / llmDriven`，逐题落盘为
-    `rankDriver / rankLocked / rankRejected / rankEvidenceMiss`（`run_eval.py`）。
+  - trace 记录 `rank` 步的 `driver / locked / rejected / evidenceMiss / note / llmDriven`，逐题落盘为
+    `rankDriver / rankLocked / rankRejected / rankEvidenceMiss`（`run_eval.py`）；`note` 是模型给的一句话
+    排序理由，只供人工复核，不参与任何判定。
 - 消融开关：`KG_NO_RANK=1`（CLI `--no-rank`）只关这一个节点，其余链路不变，
   因此「重排贡献多少」可以用同一份代码、同一批题做 A/B，而不是拿两个版本对比。
 
@@ -52,7 +53,7 @@
 | `test_run_llm_applies_llm_ranking` | 反转 prompt 候选后，`diagnosis.faults/solutions` 真的被改 |
 | `test_run_llm_skips_ranking_when_ablation_flag_set` | `KG_NO_RANK=1` 时 driver=rule 且顺序与规则一致 |
 
-全量测试 162 项全绿（2 skip），前端 `npm run build` 通过。
+全量测试 163 项全绿（2 skip），前端 `npm run build` 通过。
 
 ## 4. 结果（20 题难题集 × 3 次重复）
 
