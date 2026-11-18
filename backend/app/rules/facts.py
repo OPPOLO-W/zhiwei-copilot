@@ -69,6 +69,7 @@ def build_facts(
     code: str | None = None,
     symptom: str | None = None,
     check_results: Iterable[dict[str, str]] | None = None,
+    actions: Iterable[str] | None = None,
     today: datetime | None = None,
 ) -> FactProjection:
     today = today or datetime.now()
@@ -259,13 +260,66 @@ def build_facts(
 
     # ---------- 6. 用户提供的检查结果 ----------
     for result in check_results or []:
-        k = result.get("check")
-        f = result.get("fault")
+        k = _resolve_node_ref(store, result.get("check"), "Check")
+        f = _resolve_node_ref(store, result.get("fault"), "Fault")
         outcome = result.get("result", "positive")
         if k and f:
-            fp.add("check_result", k, f, outcome)
+            fp.add("check_result", k.id, f.id, outcome)
+
+    # ---------- 7. 用户已经做过的动作（P2：事实来自用户自述，不是我们的推荐） ----------
+    # 动作事实与「检查结果」分开：用户说「清理过了」并不是一次规范化检查，
+    # 但它在图谱里有明确语义（RESOLVED_BY / 方案属性 excludesCauses），由规则消费。
+    for ref in actions or []:
+        sol = _resolve_solution(store, str(ref))
+        if sol is not None:
+            fp.add("action_attempted", sol.id)
+    for sol in store.nodes("Solution"):
+        for cause_code in sol.props.get("excludesCauses") or []:
+            cause = _resolve_cause(store, str(cause_code))
+            if cause is not None:
+                fp.add("solution_effect", sol.id, cause.id, "excludes")
+        if sol.props.get("exhaustsSelf"):
+            fp.add("solution_effect", sol.id, sol.id, "exhausts")
 
     return fp
+
+
+def _resolve_solution(store: GraphStore, ref: str) -> Node | None:
+    """动作可以按节点 id、方案 code 或中文名引用，统一解析成 Solution 节点。"""
+    node = store.get(ref)
+    if node is not None and node.label == "Solution":
+        return node
+    for sol in store.nodes("Solution"):
+        if str(sol.props.get("code", "")).upper() == ref.upper() or sol.name == ref:
+            return sol
+    return None
+
+
+def _resolve_cause(store: GraphStore, ref: str) -> Node | None:
+    node = store.get(ref)
+    if node is not None and node.label == "Cause":
+        return node
+    for cause in store.nodes("Cause"):
+        if str(cause.props.get("code", "")).upper() == ref.upper():
+            return cause
+    return None
+
+
+def _resolve_node_ref(store: GraphStore, ref: str | None, label: str) -> Node | None:
+    """检查/故障既可能按节点 id 传，也可能按 code（CHK-…/LEFT-WHEEL-STUCK）传，统一归一化。
+
+    归一化很重要：规则里的 CONFIRMED_BY / DETECTS 连接的是节点 id，
+    外部传入的 code 若不归一化，check_result 永远连不上 cause_confirmed_by。
+    """
+    if not ref:
+        return None
+    node = store.get(ref)
+    if node is not None and node.label == label:
+        return node
+    for cand in store.nodes(label):
+        if str(cand.props.get("code", "")).upper() == ref.upper():
+            return cand
+    return None
 
 
 def _model_code(store: GraphStore, model_id: str) -> str:

@@ -94,11 +94,15 @@ def diagnose(
     symptom: str | None = None,
     check_results: Iterable[dict[str, str]] | None = None,
     question: str | None = None,
+    actions: Iterable[str] | None = None,
 ) -> Diagnosis:
-    """question 仅用于识别「跨型号比较」这类问法，不参与推理。"""
+    """question 仅用于识别「跨型号比较」这类问法，不参与推理。
+
+    actions 是用户自述已做过的方案（P2 多轮事实），按图谱 Solution.excludesCauses 参与排除。
+    """
     try:
         fp = build_facts(store, case_no=case_no, model=model, code=code,
-                         symptom=symptom, check_results=check_results)
+                         symptom=symptom, check_results=check_results, actions=actions)
     except ValueError as exc:
         fallback = _lookup_fallback(store, str(exc), model=model, code=code)
         if fallback is None:
@@ -376,9 +380,18 @@ def _assemble(store: GraphStore, fp: FactProjection, result: InferenceResult) ->
         except ValueError:
             continue
     excluded = {a[2] for a, _ in result.of("excluded_fault")}
+    # P2：用户自述已做过的动作/已得阳性的检查，可能排除某些根因。
+    # 排除根因必须向下传导：故障的全部根因被排除时，整条故障也退出候选。
+    excluded_causes = {a[1] for a, _ in result.of("excluded_cause")}
+    fault_causes: dict[str, set[str]] = {}
+    for atom, _ in result.of("fault_caused_by"):
+        fault_causes.setdefault(atom[1], set()).add(atom[2])
     faults: list[dict[str, Any]] = []
     for fid, cf in fault_cf.items():
         if fid in excluded:
+            continue
+        known_causes = fault_causes.get(fid)
+        if known_causes and known_causes <= excluded_causes:
             continue
         node = store.get(fid)
         if node is None:
@@ -410,6 +423,8 @@ def _assemble(store: GraphStore, fp: FactProjection, result: InferenceResult) ->
         node = store.get(cid)
         if node is None:
             continue
+        if fid in excluded or cid in excluded_causes:
+            continue
         causes.append({
             "id": cid,
             "name": node.name,
@@ -440,9 +455,15 @@ def _assemble(store: GraphStore, fp: FactProjection, result: InferenceResult) ->
         reasons.setdefault(sid, []).append("consumable_first")
 
     solutions: list[dict[str, Any]] = []
+    support: dict[str, set[str]] = {}
+    for atom, _ in result.of("candidate_solution"):
+        support.setdefault(atom[3], set()).add(atom[2])
     for sid, s in score.items():
         node = store.get(sid)
         if node is None or sid in rejected:
+            continue
+        # 方案只服务于被排除的根因时，不再作为候选（其余根因仍支持则保留）
+        if support.get(sid) and support[sid] <= excluded_causes:
             continue
         penalty = 0.0
         if "network" in suppress:

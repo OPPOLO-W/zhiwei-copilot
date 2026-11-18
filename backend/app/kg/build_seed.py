@@ -516,15 +516,26 @@ class SeedBuilder:
                          self.src("check"), 0.88, evidence_mode=self.mode("check"))
 
     def _build_solutions(self) -> None:
+        cause_codes = {c["code"] for c in self.seed["causes"]}
         for s in self.seed["solutions"]:
-            sid = self.add_node("Solution", self.node_id("Solution", s["code"]), {
+            excludes = list(s.get("excludes", []))
+            for code in excludes:
+                if code not in cause_codes:
+                    raise SeedError(f"方案 {s['code']} 的 excludes 引用未定义根因 {code}")
+            props = {
                 "name": s["name"],
                 "code": s["code"],
                 "type": s.get("type", "clean"),
                 "riskLevel": s.get("riskLevel", "low"),
                 "selfServiceable": bool(s.get("selfServiceable", True)),
                 "estimatedMin": s.get("estimatedMin", 10),
-            })
+            }
+            # P2 领域知识：用户做完这个动作后，可以排除哪些根因；exhausts 表示「已试过但仍不成立」
+            if excludes:
+                props["excludesCauses"] = excludes
+            if s.get("exhausts"):
+                props["exhaustsSelf"] = True
+            sid = self.add_node("Solution", self.node_id("Solution", s["code"]), props)
             for con in s.get("consumes", []):
                 con_id = self.node_id("Consumable", con)
                 if not self.graph.has_node(con_id):

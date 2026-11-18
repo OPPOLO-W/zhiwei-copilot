@@ -1,5 +1,5 @@
 # =============================================================================
-# 诊断规则集（24 条）
+# 诊断规则集（27 条）
 # -----------------------------------------------------------------------------
 # 语法约定
 #   ?X        变量（结论中出现的变量必须在条件里绑定）
@@ -312,3 +312,41 @@ rules:
       - {pred: insufficient_evidence, args: ["?T"]}
       - {pred: escalate, args: ["?T", "no_solution"]}
     explanation: "图谱中没有可支撑的方案，输出证据不足并建议补充信息或联系官方售后"
+
+  # ---------------- 用户已执行的动作（P2：多轮事实） ----------------
+  # 语义边界：action_attempted 表示「用户自述做过」，不是我们观察到的事实；
+  # 因此这里只做「排除/降权」，不直接断言故障不存在。排除表来自图谱
+  # Solution.excludesCauses（种子里的领域知识），不在 prompt 或代码里写死。
+  - id: R25
+    name: 已执行动作排除根因
+    category: diagnosis
+    priority: 70
+    when:
+      - {pred: action_attempted, args: ["?S"]}
+      - {pred: solution_effect, args: ["?S", "?C", "excludes"]}
+    then:
+      - {pred: excluded_cause, args: ["?C", "action_done"]}
+    explanation: "用户已执行方案{S}，按图谱语义可排除根因{C}"
+
+  - id: R26
+    name: 检查阴性排除根因
+    category: diagnosis
+    priority: 72
+    when:
+      - {pred: check_result, args: ["?K", "?F", "negative"]}
+      - {pred: cause_confirmed_by, args: ["?C", "?K"]}
+    then:
+      - {pred: excluded_cause, args: ["?C", "check_negative"]}
+    explanation: "检查{K}结果为阴性，排除其可确认的根因{C}"
+
+  - id: R27
+    name: 已试过且无效的方案降权
+    category: ranking
+    priority: 68
+    when:
+      - {pred: action_attempted, args: ["?S"]}
+      - {pred: solution_effect, args: ["?S", "?S2", "exhausts"]}
+      - {pred: candidate_solution, args: ["?T", "?CA", "?S2", "?CF"]}
+    then:
+      - {pred: reject_solution, args: ["?T", "?S2", "action_exhausted"]}
+    explanation: "方案{S2}用户已试过但仍未解决，不再作为首选推荐"

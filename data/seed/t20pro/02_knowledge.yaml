@@ -269,30 +269,30 @@ checks:
   - {code: CHECK-NETWORK-STABILITY, name: 检查网络稳定性, method: 升级前用手机在同一网络下进行持续测速, riskLevel: low, durationMin: 5, detects: [FIRMWARE-UPGRADE-FAIL], note: 丢包会导致升级校验失败}
 
 solutions:
-  - {code: CLEAN-WHEEL, name: 清理轮组缠绕物, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15922], note: 关机后剪断并清除轮轴毛发，再手动转动确认顺畅}
-  - {code: REPLACE-WHEEL, name: 更换轮组总成, type: replace, riskLevel: medium, selfServiceable: true, estimatedMin: 20, parts: [LEFT-WHEEL-ASSY], docs: [DOC:T20PRO-MANUAL], note: 轴承磨损或轮组变形时更换对应侧轮组}
+  - {code: CLEAN-WHEEL, name: 清理轮组缠绕物, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, excludes: [HAIR-WRAP-WHEEL], docs: [DOC:FAQ-15922], note: 关机后剪断并清除轮轴毛发，再手动转动确认顺畅}
+  - {code: REPLACE-WHEEL, name: 更换轮组总成, type: replace, riskLevel: medium, selfServiceable: true, estimatedMin: 20, parts: [LEFT-WHEEL-ASSY], excludes: [BEARING-WEAR, HAIR-WRAP-WHEEL], docs: [DOC:T20PRO-MANUAL], note: 轴承磨损或轮组变形时更换对应侧轮组}
   - {code: ESCALATE-SERVICE, name: 转官方售后检测, type: escalate, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:T20PRO-MANUAL], note: 涉及电机、主板、电池的故障应转官方售后}
-  - {code: CLEAN-SIDE-BRUSH, name: 清理边刷, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:FAQ-15805], note: 取下边刷清除缠绕毛发}
+  - {code: CLEAN-SIDE-BRUSH, name: 清理边刷, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, excludes: [HAIR-WRAP-SIDE-BRUSH], docs: [DOC:FAQ-15805], note: 取下边刷清除缠绕毛发}
   - {code: REPLACE-SIDE-BRUSH, name: 更换边刷, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 5, consumes: [SIDE-BRUSH], docs: [DOC:FAQ-15805], note: 刷毛变形或断裂时成对更换}
   - {code: CLEAN-MAIN-BRUSH, name: 清理主刷, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15807], note: 用清理刀割断缠绕毛发并取出异物}
   - {code: REPLACE-MAIN-BRUSH, name: 更换主刷, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 5, consumes: [MAIN-BRUSH], docs: [DOC:FAQ-15807], note: 胶条磨损或变形时更换}
   - {code: CLEAN-FAN, name: 清理风机与风道, type: clean, riskLevel: medium, selfServiceable: false, estimatedMin: 15, docs: [], note: 风机位于机身内部，建议售后清理}
   - {code: CLEAN-FILTER, name: 清洗滤网, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:T20PRO-MANUAL], note: 清水冲洗后需完全晾干再装回}
-  - {code: REPLACE-FILTER, name: 更换滤网, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 3, consumes: [FILTER], docs: [DOC:T20PRO-MANUAL], note: 每 3 个月或无法洗净时更换}
+  - {code: REPLACE-FILTER, name: 更换滤网, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 3, consumes: [FILTER], excludes: [FILTER-CLOG-CAUSE], docs: [DOC:T20PRO-MANUAL], note: 每 3 个月或无法洗净时更换}
   - {code: SAFETY-STOP, name: 立即停用并断开充电, type: escalate, riskLevel: low, selfServiceable: true, estimatedMin: 1, docs: [DOC:T20PRO-MANUAL], note: 停止使用与充电，远离可燃物，联系官方售后}
   - {code: MOVE-TO-VENTILATED, name: 移至通风处降温, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 30, docs: [], note: 移至阴凉通风处自然降温，禁止继续充电}
   - {code: REPLACE-BATTERY, name: 更换电池组, type: replace, riskLevel: high, selfServiceable: false, estimatedMin: 60, parts: [BATTERY-PACK], docs: [], note: 电池为不可自行拆解部件，必须由官方售后更换}
-  - {code: CLEAN-CONTACT, name: 清洁充电触点, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:T20PRO-MANUAL], note: 用干布或橡皮擦清洁触点氧化层，禁止用湿布}
+  - {code: CLEAN-CONTACT, name: 清洁充电触点, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, exhausts: true, docs: [DOC:T20PRO-MANUAL], note: 用干布或橡皮擦清洁触点氧化层，禁止用湿布}
   - {code: CLEAN-CLIFF-SENSOR, name: 清洁下视传感器, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 3, docs: [DOC:T20PRO-MANUAL], note: 干布擦拭底部传感器镜面}
   - {code: CLEAN-BUMPER, name: 清理碰撞板缝隙, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 5, docs: [DOC:T20PRO-MANUAL], note: 清除碰撞板缝隙毛发使其回弹顺畅}
-  - {code: CLEAN-LDS, name: 清洁雷达视窗, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 3, docs: [DOC:T20PRO-MANUAL], note: 干布擦拭雷达视窗，禁止使用酒精}
+  - {code: CLEAN-LDS, name: 清洁雷达视窗, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 3, excludes: [LDS-DIRTY], docs: [DOC:T20PRO-MANUAL], note: 干布擦拭雷达视窗，禁止使用酒精}
   - {code: REPLACE-LDS, name: 更换激光雷达总成, type: replace, riskLevel: high, selfServiceable: false, estimatedMin: 60, parts: [LDS-ASSY], docs: [], note: 雷达电机或皮带故障需售后更换总成}
   - {code: RESEAT-DUST-BOX, name: 重新安装尘盒, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 1, docs: [DOC:FAQ-15806], note: 尘盒推到底直到卡扣到位}
   - {code: REPLACE-DUST-BAG, name: 更换尘袋, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 3, consumes: [DUST-BAG], docs: [DOC:FAQ-15911], note: 尘袋满后整体更换，不可清洗复用}
   - {code: PRIME-PUMP, name: 水泵排气, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:T20PRO-MANUAL], note: 重新安装清水箱并运行基站清洗程序排气}
   - {code: DESCALE-WATER-PATH, name: 水路除垢, type: clean, riskLevel: medium, selfServiceable: true, estimatedMin: 30, consumes: [CLEANING-LIQUID], docs: [DOC:T20PRO-MANUAL], note: 使用官方清洁液按说明浸泡管路除垢}
   - {code: REPLACE-PUMP, name: 更换水泵总成, type: replace, riskLevel: high, selfServiceable: false, estimatedMin: 60, parts: [WATER-PUMP-ASSY], docs: [], note: 排气与除垢均无效时更换水泵}
-  - {code: RESEAT-WATER-TANK, name: 重新安装清水箱, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 2, docs: [DOC:FAQ-15924], note: 加满清水并卡到位}
+  - {code: RESEAT-WATER-TANK, name: 重新安装清水箱, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 2, excludes: [TANK-NOT-SEATED], docs: [DOC:FAQ-15924], note: 加满清水并卡到位}
   - {code: REPLACE-TANK-SEAL, name: 更换水箱密封圈, type: replace, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [], note: 密封圈老化渗水时更换}
   - {code: EMPTY-SEWAGE-TANK, name: 清空并清洗污水箱, type: clean, riskLevel: low, selfServiceable: true, estimatedMin: 10, docs: [DOC:FAQ-15924], note: 清空污水箱并用清水冲洗，晾干后装回}
   - {code: RESEAT-MOP-PLATE, name: 重新安装拖布支架, type: reset, riskLevel: low, selfServiceable: true, estimatedMin: 2, docs: [DOC:FAQ-15905], note: 两侧卡扣同时压紧直到听到咔哒声}

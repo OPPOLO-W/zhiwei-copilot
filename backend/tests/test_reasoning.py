@@ -106,3 +106,49 @@ def test_diagnose_is_deterministic(store, model, code):
     b = diagnose(store, model=model, code=code).to_dict()
     assert a["answer"] == b["answer"]
     assert [f["id"] for f in a["faults"]] == [f["id"] for f in b["faults"]]
+
+
+# ---------------- P2：用户自述事实（actions）进入推理 ----------------
+def test_action_excludes_cause_and_reranks_solution(store, model):
+    """用户说「毛发已经清理干净」，应排除缠绕根因，方案首位换成更换轮组。"""
+    base = diagnose(store, model=model, code="E11")
+    d = diagnose(store, model=model, code="E11", actions=["CLEAN-WHEEL"])
+    assert "轮轴毛发或线材缠绕" in _names(base.causes)
+    assert "轮轴毛发或线材缠绕" not in _names(d.causes)
+    assert d.solutions[0]["name"] == "更换轮组总成"
+    assert d.solutions[0]["name"] != base.solutions[0]["name"]
+
+
+def test_two_actions_narrow_to_escalation(store, model):
+    """清理 + 换新都做过，只剩电机故障，方案应直接转官方售后。"""
+    d = diagnose(store, model=model, code="E11", actions=["CLEAN-WHEEL", "REPLACE-WHEEL"])
+    assert _names(d.causes) == ["驱动电机故障"]
+    assert d.solutions[0]["name"] == "转官方售后检测"
+
+
+def test_exhausted_solution_is_dropped(store, model):
+    """清洁触点已试过仍充不上：清洁方案不再作为候选，更换触点上升。"""
+    d = diagnose(store, model=model, code="E23", actions=["CLEAN-CONTACT"])
+    names = _names(d.solutions)
+    assert "清洁充电触点" not in names
+    assert names[0] == "更换充电触点组件"
+    assert [c["name"] for c in d.causes] == ["充电触点氧化"]
+
+
+def test_excluded_cause_removes_its_fault(store, model):
+    """清水箱重装过 → 排除「水箱未卡到位」，只用于该根因的故障也应退出候选。"""
+    d = diagnose(store, model=model, code="E33", actions=["RESEAT-WATER-TANK"])
+    assert "清水箱缺水" not in _names(d.faults)
+    assert "水箱未卡到位" not in _names(d.causes)
+    assert d.solutions[0]["name"] == "水泵排气"
+
+
+def test_negative_check_excludes_cause(store, model):
+    """检查结果阴性（轴承间隙正常）应排除轴承磨损根因（R26）。"""
+    d = diagnose(
+        store,
+        model=model,
+        code="E11",
+        check_results=[{"check": "CHECK-WHEEL-BEARING", "fault": "LEFT-WHEEL-STUCK", "result": "negative"}],
+    )
+    assert "轮组轴承磨损" not in _names(d.causes)
