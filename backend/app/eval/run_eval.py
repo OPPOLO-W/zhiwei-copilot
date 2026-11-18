@@ -88,6 +88,9 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
     # 答案自带的 claims（LLM 路径）优先：悬空引用/可信度要量「这段话的引用」，
     # 而不是永远拿规则模板的 claims 去量模型的措辞。
     llm_claims = getattr(run, "claims", None) or []
+    # P1 候选重排的审计信息：重排是否发生、是否被安全边界锁定、拒了多少非法 id。
+    # 没有 rank 步（确定性系统）时全为 None，不参与指标汇总。
+    rank = next((t for t in run.trace if t.get("node") == "rank"), None)
     return {
         "answer": run.answer,
         "faultCodes": [f["code"] for f in d.faults if f.get("code")],
@@ -98,6 +101,10 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
         "checkNames": [c["name"] for c in d.checks],
         "evidenceIds": _evidence_ids(d),
         "latencyMs": 0,
+        "rankDriver": (rank or {}).get("driver"),
+        "rankLocked": (rank or {}).get("locked"),
+        "rankRejected": (rank or {}).get("rejected", []),
+        "rankEvidenceMiss": (rank or {}).get("evidenceMiss", 0),
         # 上下文完整度与工具效率：D/E 组的退化往往体现在这两项而不是准确率上
         "coverage": round(len(covered) / 5, 4) if run.coverage else None,
         "toolCalls": len(run.tool_results),
