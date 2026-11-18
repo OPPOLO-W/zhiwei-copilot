@@ -190,6 +190,42 @@ def overclaim(answer: str, must_not_claim: Iterable[str]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# 3.5 答案文本里到底说了什么（双评分口径）
+# ---------------------------------------------------------------------------
+
+
+def first_mention(text: str, candidates: Iterable[str]) -> str | None:
+    """最早出现的候选实体（按字符位置）——「先说的结论是什么」。
+
+    与 `in` 判断的区别：答案里先推荐错方案、再顺带列对方案时，`in` 会判对，
+    本函数会如实返回错方案。位置取 find() 首次出现处，平局时保留先遍历到的候选。
+    """
+    body = str(text or "")
+    best: tuple[int, str] | None = None
+    for word in candidates:
+        if not word:
+            continue
+        pos = body.find(word)
+        if pos >= 0 and (best is None or pos < best[0]):
+            best = (pos, word)
+    return best[1] if best else None
+
+
+def expressed_entities(answer: str, vocab: Vocab) -> dict[str, Any]:
+    """从答案文本解析「先提到的故障/方案」。
+
+    这是 `decision_*`（诊断结构里排第一的结论）的对照面：同一套系统，结构里排第一
+    与文字里先说的是两件事，只量前者会让「LLM 只是换了个说法」和「LLM 改变了推理」
+    看起来一模一样。
+    """
+    body = str(answer or "")
+    return {
+        "topFault": first_mention(body, vocab.fault_names),
+        "topSolution": first_mention(body, vocab.solution_names),
+    }
+
+
+# ---------------------------------------------------------------------------
 # 4. 安全红线
 # ---------------------------------------------------------------------------
 

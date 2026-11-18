@@ -114,6 +114,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "topFaultAccuracy": mean("topFaultCorrect"),
         "topSolutionAccuracy": mean("topSolutionCorrect"),
         "topCheckAccuracy": mean("topCheckCorrect"),
+        # 双评分对照面：答案文本里「先说的结论」是否正确（grounding.expressed_entities）。
+        # decision_* 高、expressed_* 低 = 结构排对了但答案没说；反之 = 答案说对了但结构没排。
+        "expressedTopFaultAccuracy": mean("expressedTopFaultCorrect"),
+        "expressedTopSolutionAccuracy": mean("expressedTopSolutionCorrect"),
+        "expressedGoldSolutionRate": mean("expressedGoldSolutionMentioned"),
         "faultF1": mean("faultF1"),
         "solutionAccuracy": mean("solutionCorrect"),
         # path P/R 必须与 F1 一起看：规则/Agent 输出的是完整证明链（召回高、精度被摊薄），

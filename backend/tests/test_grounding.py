@@ -9,7 +9,9 @@ from __future__ import annotations
 from backend.app.eval.grounding import (
     Vocab,
     dangling_citations,
+    expressed_entities,
     fabricated_entities,
+    first_mention,
     overclaim,
     safety_violation,
 )
@@ -125,3 +127,42 @@ def test_overclaim_exempts_negated_mention():
 
 def test_overclaim_still_flags_affirmative_mention():
     assert overclaim("可以继续充电，观察两天再说。", ["观察两天"])["count"] == 1
+
+
+# ---------------------------------------------------------------- 表达层（双评分）
+def test_first_mention_prefers_earliest_position():
+    """按字符位置取最早出现的候选，而不是按传入顺序。"""
+    text = "先清理轮组缠绕物，若无效再更换轮组总成。"
+    assert first_mention(text, ["更换轮组总成", "清理轮组缠绕物"]) == "清理轮组缠绕物"
+
+
+def test_first_mention_none_when_nothing_matches():
+    assert first_mention("型号是 T20 PRO。", ["更换轮组总成", ""]) is None
+
+
+def test_expressed_entities_reads_answer_not_structure():
+    vocab = Vocab(
+        fault_codes=frozenset({"LEFT-WHEEL-STUCK"}),
+        fault_names=frozenset({"左驱动轮卡滞", "电池过热或鼓包"}),
+        solution_names=frozenset({"清理轮组缠绕物", "更换轮组总成"}),
+        check_codes=frozenset(),
+        node_ids=frozenset(),
+    )
+    out = expressed_entities("先更换轮组总成，再清理轮组缠绕物。左驱动轮卡滞是可能原因。", vocab)
+    assert out["topFault"] == "左驱动轮卡滞"
+    assert out["topSolution"] == "更换轮组总成"
+
+
+def test_expressed_wrong_first_solution_not_hidden_by_later_right_one():
+    """答案里出现正确方案 ≠ 先推荐了它——这正是 answer_correct 与 expressed 的分歧。"""
+    vocab = Vocab(
+        fault_codes=frozenset(),
+        fault_names=frozenset(),
+        solution_names=frozenset({"清理轮组缠绕物", "更换轮组总成"}),
+        check_codes=frozenset(),
+        node_ids=frozenset(),
+    )
+    answer = "建议先清理轮组缠绕物，若仍卡滞再更换轮组总成。"
+    out = expressed_entities(answer, vocab)
+    assert out["topSolution"] == "清理轮组缠绕物"   # 首个推荐不是金标准
+    assert "更换轮组总成" in answer                # 但关键词判定会判它「提到了」

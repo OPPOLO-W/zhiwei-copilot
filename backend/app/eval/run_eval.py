@@ -162,6 +162,20 @@ def _run_rag(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
             "evidenceIds": [], "latencyMs": 0}
 
 
+def _gold_fault_name(store: GraphStore, q: dict[str, Any]) -> str | None:
+    """金标准故障 id → 中文名，用于在答案文本里匹配。
+
+    题集里 `goldFaults` 存的是节点 id（如 LEFT-WHEEL-STUCK），答案里写的是
+    「左驱动轮卡滞」这类 name；不映射就永远匹配不上，expressed 指标会恒为 0。
+    """
+    gid = ((q.get("goldFaults") or [""])[0] or "").strip()
+    if not gid:
+        return None
+    node = store.get(f"FAULT:{gid}") or store.get(gid)
+    name = str(((node.props if node else {}) or {}).get("name") or "").strip()
+    return name or None
+
+
 SYSTEMS = {
     "rule": _run_rule,
     "agent": _run_agent,
@@ -212,6 +226,9 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             vocab=vocab,
             forbid_solutions=bool(q.get("forbidAnySolution")),
         )
+        gold_fault = _gold_fault_name(store, q)
+        gold_sol = str(q.get("goldSolution") or "").strip()
+        expr = grounding.expressed_entities(out["answer"], vocab)
         rows.append({
             **g,
             "id": q.get("id"),
@@ -219,6 +236,22 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             "answer": out["answer"],
             "faultCodes": out["faultCodes"],
             "solutionNames": out["solutionNames"][:3],
+            # 双评分：decision_* 量「诊断结构里排第一的结论」，expressed_* 量
+            # 「答案文字里先说的结论」。只量前者时，换措辞与改推理不可区分。
+            "goldFaultName": gold_fault,
+            "expressedTopFault": expr["topFault"],
+            "expressedTopSolution": expr["topSolution"],
+            "expressedTopFaultCorrect": (
+                expr["topFault"] == gold_fault if gold_fault else None
+            ),
+            "expressedTopSolutionCorrect": (
+                expr["topSolution"] == gold_sol if gold_sol else None
+            ),
+            "expressedGoldSolutionMentioned": (
+                gold_sol in out["answer"] if gold_sol else None
+            ),
+            # claims 来源：rule = 规则模板，llm = 答案自带。悬空引用的分母是谁，必须可查。
+            "claimsSource": out.get("claimsSource", "rule"),
             "faultF1": f["f1"] if has_fault_gold else None,
             "pathF1": p["f1"] if has_path_gold else None,
             "pathPrecision": p["precision"] if has_path_gold else None,
