@@ -321,3 +321,21 @@ def test_run_llm_applies_llm_ranking(store, model, monkeypatch):
         assert run.diagnosis.faults[-1]["id"] == baseline.faults[0]["id"]
     if len(baseline.solutions) >= 2:
         assert run.diagnosis.solutions[0]["id"] == baseline.solutions[-1]["id"]
+
+
+def test_run_llm_skips_ranking_when_ablation_flag_set(store, model, monkeypatch):
+    """KG_NO_RANK=1 只关重排：rank 步仍在 trace 里，但 driver 必须是 rule。
+
+    这样「重排贡献了多少」才能用同一份代码、同一批题做 A/B，而不是靠版本对比。
+    """
+    q = f"{model} 报 E11，左轮不转"
+    baseline = graph.run(store, question=q).diagnosis
+
+    monkeypatch.setenv("KG_NO_RANK", "1")
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_reverse_rank_handler))
+    run = llm_agent.run_llm(store, question=q)
+
+    rank_steps = [t for t in run.trace if t["node"] == "rank"]
+    assert rank_steps and rank_steps[0]["driver"] == "rule"
+    assert [f["id"] for f in run.diagnosis.faults] == [f["id"] for f in baseline.faults]
+    assert [s["id"] for s in run.diagnosis.solutions] == [s["id"] for s in baseline.solutions]

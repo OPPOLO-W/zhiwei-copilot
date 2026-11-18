@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -289,6 +290,12 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             ),
             "faithfulness": metrics.faithfulness(out["claims"]),
             "hallucination": metrics.hallucination_rate(out["claims"]),
+            # P1 重排审计：driver=llm 表示这次排序真的被模型改过；locked 会被安全边界
+            # 挡回；rejected 是模型给出候选集外 id 的次数（应为 0，否则说明提示词约束漏了）。
+            "rankDriver": out.get("rankDriver"),
+            "rankLocked": out.get("rankLocked"),
+            "rankRejected": out.get("rankRejected") or [],
+            "rankEvidenceMiss": out.get("rankEvidenceMiss") or 0,
             "coverage": out.get("coverage"),
             "toolCalls": out.get("toolCalls"),
             "reflectionRounds": out.get("reflectionRounds"),
@@ -297,11 +304,13 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
 
     summary = metrics.summarize(rows)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    no_rank = os.environ.get("KG_NO_RANK") == "1"
     result = {"id": f"{system}_{stamp}", "system": system, "dataset": dataset,
+              "noRank": no_rank,
               "at": datetime.now().isoformat(timespec="seconds"),
               "summary": summary, "rows": rows}
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    (RESULTS_DIR / f"{system}_{stamp}.json").write_text(
+    (RESULTS_DIR / f"{system}{'_norank' if no_rank else ''}_{stamp}.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return result
@@ -314,7 +323,14 @@ def main() -> None:
     parser.add_argument("--repeat", type=int, default=1, help="每系统重复次数（文档要求 3）")
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--questions", type=Path, default=None)
+    parser.add_argument("--no-rank", action="store_true",
+                        help="消融：只关闭 LLM 候选重排（KG_NO_RANK=1），其余节点不变")
     args = parser.parse_args()
+
+    if args.no_rank:
+        os.environ["KG_NO_RANK"] = "1"
+    else:
+        os.environ.pop("KG_NO_RANK", None)
 
     from ..kg import get_store
 
@@ -335,12 +351,13 @@ def main() -> None:
         print(f"\n== {system}（{len(runs)} 次）")
         print(json.dumps(summary, ensure_ascii=False, indent=2))
 
-    if len(systems) > 1:
+    if len(systems) > 1 or max(1, args.repeat) > 1:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = RESULTS_DIR / f"aggregate_{stamp}.json"
         path.write_text(json.dumps(
             {"at": datetime.now().isoformat(timespec="seconds"), "dataset": dataset,
-             "repeat": max(1, args.repeat), "nQuestions": len(questions), "systems": agg},
+             "repeat": max(1, args.repeat), "noRank": bool(args.no_rank),
+             "nQuestions": len(questions), "systems": agg},
             ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\n汇总（均值±标准差）已写入 {path}")
 

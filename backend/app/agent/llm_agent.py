@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -383,6 +384,10 @@ def _candidates(d: Diagnosis) -> dict[str, list[dict[str, Any]]]:
 
 def _rank(client: LLMClient, store: GraphStore, question: str, slots: Slots,
           d: Diagnosis, usage: dict[str, Any]) -> _Ranking | None:
+    if os.environ.get("KG_NO_RANK") == "1":
+        # 消融开关：只关重排、其余节点不变，用于回答「重排本身贡献了多少」。
+        # 生产路径不设这个变量，默认开启。
+        return None
     cands = _candidates(d)
     if len(cands["faults"]) < 2 and len(cands["solutions"]) < 2:
         # 只有唯一候选时排序没有信息量，省掉一次调用
