@@ -32,11 +32,13 @@ from ..llm.prompts import (
     Claim,
     FinalAnswerOutput,
     PlanOutput,
+    RankOutput,
     ReflectionOutput,
     SlotExtraction,
     decompose_prompt,
     finalize_prompt,
     plan_prompt,
+    rank_prompt,
     reflect_prompt,
 )
 from ..reasoning.graph_only import diagnose_graph_only
@@ -182,7 +184,9 @@ def run_llm(
     similar: list[dict[str, Any]] = []
     compat: list[dict[str, Any]] = []
 
-    # ---------- plan/act：默认按规则生成计划，KG_LLM_PLAN=1 时仍交给 LLM ----------
+    # ---------- plan/act：规则给取证计划（可用 KG_LLM_PLAN=1 换回 LLM 计划）----------
+    # 50 题里 LLM 计划几乎总是回「查相似案例 + 查文档」，与规则计划重合；
+    # 换成规则生成后既省一次往返，也避免模型凭空拼参数。
     plan = None
     if os.environ.get("KG_LLM_PLAN") == "1":
         plan = _plan(client, store, question or "", slots, diagnosis, similar, compat,
@@ -213,7 +217,7 @@ def run_llm(
     rounds = 0
     # P4.1：确定性路径已经全覆盖时，再追问一次「还缺什么」只会拿到空清单，
     # 却要付一次完整的 LLM 往返（50 题里的单跳/两跳题基本都落在这里）。
-    # P4.2 预算护栏放在覆盖度判断之前：已经花掉八成预算就不该再付任何一次反思。
+    # P4.2 预算护栏放在覆盖度判断之前：已经花掉八成预算，就不该再付任何一次反思。
     if use_reflection and llm_usage["tokens"] >= settings.agent_token_budget * 0.8:
         step("reflect", skipped="budget")
     elif use_reflection and all(v == "covered" for v in coverage.values()):
@@ -273,6 +277,15 @@ def run_llm(
             step("reflect", stopped="no_progress", round=rounds)
             break
 
+    # ---------- rank：规则定候选，LLM 只在候选内排序（P1）----------
+    # 放在探索之后、finalize 之前：此时候选集与相似案例都已就绪，
+    # 重排结果既影响最终答案，也直接进入 diagnosis（下游指标可观测）。
+    calls_before_rank = llm_usage["calls"]
+    ranking = _rank(client, store, question or "", slots, diagnosis, llm_usage)
+    audit = _apply_ranking(diagnosis, ranking)
+    audit["llmDriven"] = llm_usage["calls"] > calls_before_rank
+    step("rank", **audit)
+
     # ---------- ask_user：结论不够确定时先问一个最能分开根因的问题（P2.3）----------
     # 默认关闭（allow_ask=False）：单轮评测必须保持「不问也答」的口径，
     # 否则把所有歧义题都变成 needs_info，历史指标全部失真。
@@ -300,10 +313,6 @@ def run_llm(
     if ask_payload:
         # 追问放在结论之后：用户先看到当前判断与依据，再决定要不要做这一步检查
         answer = f"{answer}\n\n{ask_payload['question']}"
-    if final.rankAudit is not None:
-        # P5.1：排序已并入 finalize 的同一次调用，这里只落审计，不再单独计时
-        step("rank",
-             llmDriven=final.rankAudit.get("driver") == "llm", **final.rankAudit)
     step("finalize", coverage=coverage, llmAnswer=llm_usage["calls"] > calls_before,
          claims=len(final.claims), claimsSource=claims_source,
          unsupportedClaims=final.droppedClaims,
@@ -569,12 +578,31 @@ def _candidates(d: Diagnosis) -> dict[str, list[dict[str, Any]]]:
     }
 
 
-def _rank_enabled(d: Diagnosis) -> bool:
-    """候选不足两条时排序没有信息量；消融开关与预算护栏也在这里统一判断。"""
+def _rank(client: LLMClient, store: GraphStore, question: str, slots: Slots,
+          d: Diagnosis, usage: dict[str, Any]) -> _Ranking | None:
     if os.environ.get("KG_NO_RANK") == "1":
-        # 消融开关：只关排序、其余节点不变，用于回答「排序本身贡献了多少」
-        return False
-    return len(d.faults) >= 2 or len(d.solutions) >= 2
+        # 消融开关：只关重排、其余节点不变，用于回答「重排本身贡献了多少」。
+        # 生产路径不设这个变量，默认开启。
+        return None
+    cands = _candidates(d)
+    if len(cands["faults"]) < 2 and len(cands["solutions"]) < 2:
+        # 只有唯一候选时排序没有信息量，省掉一次调用
+        return None
+    if usage.get("tokens", 0) >= get_settings().agent_token_budget * 0.8:
+        # P4.2 预算护栏：已经花掉八成预算，重排是「锦上添花」，优先保住 finalize
+        return None
+    try:
+        data = client.chat_json(
+            rank_prompt(store, question, slots.to_dict(), cands,
+                        {"warnings": d.warnings, "policies": d.policies}),
+            max_tokens=900,
+        )
+        out = RankOutput.model_validate(data)
+        _bump(usage, client)
+        return _Ranking(faults=list(out.faults), solutions=list(out.solutions), note=out.note)
+    except (LLMError, ValueError, TypeError) as exc:
+        log.warning("LLM 候选重排失败，保留规则顺序: %s", exc)
+        return None
 
 
 def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
@@ -606,9 +634,7 @@ def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
         ordered: list[dict[str, Any]] = []
         seen: set[str] = set()
         for pick in picks:
-            # 兼容两种形态：纯 nodeId 字符串（P5.1 起，省 token）或带理由的 RankPick
-            node_id = pick if isinstance(pick, str) else str(getattr(pick, "nodeId", "") or "")
-            node_id = node_id.strip()
+            node_id = str(getattr(pick, "nodeId", "") or "")
             if node_id not in index:
                 audit["rejected"].append(node_id)
                 continue
@@ -616,7 +642,7 @@ def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
                 continue
             seen.add(node_id)
             ordered.append(index[node_id])
-            for ev in ([] if isinstance(pick, str) else getattr(pick, "evidenceIds", None) or []):
+            for ev in getattr(pick, "evidenceIds", None) or []:
                 if ev in allowed[node_id]:
                     audit["evidenceHits"] += 1
                 else:
@@ -653,8 +679,6 @@ class _Final:
     claims: list[dict[str, Any]]
     warnings: list[str]
     droppedClaims: int = 0
-    # P5.1：排序与答案同一次产出，审计随 finalize 一起返回，run_llm 只负责落到 trace
-    rankAudit: dict[str, Any] | None = None
 
 
 def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
@@ -670,15 +694,11 @@ def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
     P3.2：claims 的 evidenceIds 必须落在真实证据集合内，悬空的整条丢弃并计数。
     """
     evidence = list(diagnosis.evidence) + list(extra_evidence or [])
-    # P5.1：排序并入同一次调用——候选清单只给 id/名称/分数，模型先排序再写答案，
-    # 答案里的首选与 solutions 首位由同一次推理决定，不会出现两套口径。
-    rank_on = _rank_enabled(diagnosis) and usage.get("tokens", 0) < get_settings().agent_token_budget * 0.8
-    cands = _candidates(diagnosis) if rank_on else None
     try:
         data = client.chat_json(
             finalize_prompt(store, question, slots.to_dict(), diagnosis.to_dict(),
-                            evidence, similar, compat, notes=notes, candidates=cands),
-            max_tokens=1900,
+                            evidence, similar, compat, notes=notes),
+            max_tokens=1600,
         )
         out = FinalAnswerOutput.model_validate(data)
         _bump(usage, client)
@@ -686,18 +706,11 @@ def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
         if not text:
             return _fallback_final(diagnosis, similar, compat, slots, coverage)
         claims, dropped = _verify_claims(out.claims, evidence)
-        ranking = None
-        if cands and (out.faultOrder or out.solutionOrder):
-            ranking = _Ranking(faults=list(out.faultOrder), solutions=list(out.solutionOrder),
-                               note=out.note)
-        audit = _apply_ranking(diagnosis, ranking)
-        audit["merged"] = True
         return _Final(
             text=_guard_answer(text, diagnosis),
             claims=claims,
             warnings=_merge_warnings(diagnosis.warnings, out.warnings),
             droppedClaims=dropped,
-            rankAudit=audit,
         )
     except (LLMError, ValueError, TypeError) as exc:
         log.warning("LLM 答案生成失败，回退模板组答案: %s", exc)
@@ -733,7 +746,6 @@ def _fallback_final(diagnosis: Diagnosis, similar, compat, slots: Slots,
         text=_compose_safe(diagnosis, similar, compat, slots, coverage),
         claims=[dict(c) for c in diagnosis.claims],
         warnings=list(diagnosis.warnings),
-        rankAudit=_apply_ranking(diagnosis, None),
     )
 
 
@@ -794,26 +806,25 @@ def _fallback_plan(slots: Slots) -> list[dict[str, Any]]:
 
 
 def _auto_plan(store: GraphStore, slots: Slots, d: Diagnosis) -> list[dict[str, Any]]:
-    """P5.2：按规则生成探索计划，替掉固定花 1.3s 的 plan 调用。
+    """P5.2 规则计划：相似案例 + 方案手册原文（或症状检索）+ 候选根因邻接。
 
-    实测 plan 的选择几乎恒定（相似案例 + 文档正文 + 展开子图），
-    而「要不要取证」本来由规则结论与图谱边决定，不需要一次 LLM 往返。
+    原来这一轮由 LLM 选工具，50 题里它的输出几乎固定是「查相似案例 + 查文档」，
+    与规则能算出的计划重合，却多付一次往返（约 1.3s、1.5k token）。
     """
     plan = _fallback_plan(slots)
     doc_id = ""
     for sol in d.solutions[:2]:
-        ids = _doc_ids(store, sol["id"])
-        if ids:
-            doc_id = ids[0]
+        docs = _doc_ids(store, str(sol.get("id") or ""))
+        if docs:
+            doc_id = docs[0]
             break
     if doc_id:
         plan.append({"tool": "get_document_span", "args": {"doc_id": doc_id}})
     elif slots.symptom:
         plan.append({"tool": "search_documents", "args": {"query": slots.symptom, "k": 3}})
     if len(d.causes) >= 2 and d.faults:
-        # 多个候选根因时才有必要看邻接：单根因的子图对排错没有增益
         plan.append({"tool": "expand_subgraph",
-                     "args": {"node_ids": [d.faults[0]["id"]], "depth": 2}})
+                     "args": {"node_ids": [str(d.faults[0]["id"])], "depth": 2}})
     return plan
 
 
