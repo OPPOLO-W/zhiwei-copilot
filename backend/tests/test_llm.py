@@ -308,18 +308,19 @@ def test_apply_ranking_no_ranking_keeps_rule_order():
 
 
 def _reverse_rank_handler(messages):
+    """P5.1 起排序并入 finalize：从同一份 prompt 的 <candidates> 里读候选再反转序。"""
     text = messages[-1]["content"]
-    if "在候选【内部】排序" not in text:
+    if "<candidates>" not in text:
         return _happy_handler(messages)
     raw = text.split("<candidates>", 1)[1].split("</candidates>", 1)[0]
     cands = json.loads(raw)
-    return {
-        "faults": [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
-                   for c in reversed(cands["faults"])],
-        "solutions": [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
-                      for c in reversed(cands["solutions"])],
-        "note": "reverse",
-    }
+    out = dict(_happy_handler(messages))
+    out["faults"] = [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
+                     for c in reversed(cands["faults"])]
+    out["solutions"] = [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
+                        for c in reversed(cands["solutions"])]
+    out["note"] = "reverse"
+    return out
 
 
 def test_apply_ranking_refuses_to_promote_escalation():
@@ -478,11 +479,13 @@ def test_run_llm_stops_reflecting_when_budget_exhausted(store, model, monkeypatc
 
 
 def test_run_llm_counts_every_llm_phase(store, model, monkeypatch):
-    """成本账要覆盖全部阶段：decompose/plan/reflect/rank/finalize 少记一个，
+    """成本账要覆盖全部阶段：decompose/plan/reflect/finalize 少记一个，
     报告里的「每题几次调用、多少 token」就会系统性偏低。"""
     monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
     run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
     phases = [s for s in run.trace if s.get("node") in {"act", "plan", "rank", "finalize"}]
     assert phases
-    # decompose + plan + 至少一轮 reflect + rank + finalize
-    assert run.extra["llm"]["calls"] >= 5, run.extra["llm"]
+    # decompose + plan + 至少一轮 reflect + finalize（P5.1 起排序并入 finalize，不再单独一次）
+    assert run.extra["llm"]["calls"] >= 4, run.extra["llm"]
+    rank = [s for s in run.trace if s.get("node") == "rank"]
+    assert rank and rank[0].get("merged") is True

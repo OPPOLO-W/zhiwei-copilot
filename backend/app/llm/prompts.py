@@ -84,14 +84,6 @@ class Claim(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
-class FinalAnswerOutput(BaseModel):
-    """最终答案：带引用的叙述 + 结论清单 + 补充告警。"""
-
-    answer: str
-    claims: list[Claim] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-
-
 class RankPick(BaseModel):
     """候选排序中的一项：只能引用候选清单里出现过的 nodeId 与证据编号。"""
 
@@ -106,6 +98,27 @@ class RankOutput(BaseModel):
     faults: list[RankPick] = Field(default_factory=list)
     solutions: list[RankPick] = Field(default_factory=list)
     note: str = Field(default="", description="排序依据摘要")
+
+
+class FinalAnswerOutput(BaseModel):
+    """最终答案：候选排序 + 带引用的叙述 + 结论清单 + 补充告警。
+
+    P5 起排序并入本模型：排序与答案在同一次调用里产出，答案的首选与排序首位
+    由同一次推理决定，不会出现「排序说 A、正文先写 B」的两套口径。
+    """
+
+    answer: str
+    claims: list[Claim] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    faults: list[RankPick] = Field(
+        default_factory=list,
+        description="候选故障重排；候选清单存在时必须原样列出全部 nodeId，各一次",
+    )
+    solutions: list[RankPick] = Field(
+        default_factory=list,
+        description="候选方案重排；首位即答复里最先推荐的方案",
+    )
+    note: str = Field(default="", description="一句话说明排序依据")
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +318,25 @@ def finalize_prompt(
     similar: list[dict[str, Any]],
     compatibility: list[dict[str, Any]],
     notes: list[str] | None = None,
+    candidates: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     tool_block = (
         "【工具取证】\n" + "\n".join(notes) + "\n" if notes else ""
     )
+    candidate_block = ""
+    order_rules = ""
+    if candidates:
+        candidate_block = (
+            "【候选清单】（规则给定，只能排序，不能增删改写）\n<candidates>\n"
+            + _dump(candidates) + "\n</candidates>\n"
+        )
+        order_rules = (
+            "- 先排序再写答案：faults / solutions 各列出候选清单里的全部 nodeId，每个恰好一次，"
+            "只能重排、不能新增或删除；\n"
+            "- solutions 的第一位必须就是 answer 里最先推荐的方案，两处口径必须一致；\n"
+            "- 若告警含「停止使用/转官方售后」等安全边界，安全方案必须排第一，其余才可调整；\n"
+            "- 没有把握时保持候选清单原顺序——原顺序即规则结论；note 一句话说明排序依据。\n"
+        )
     return [
         {"role": "system", "content": system_prompt(store)},
         {
@@ -320,13 +348,14 @@ def finalize_prompt(
                 "【证据清单】\n<evidence>\n" + _dump(evidence) + "\n</evidence>\n"
                 "【相似案例】\n<similar>\n" + _dump(similar[:5]) + "\n</similar>\n"
                 "【兼容性核查】\n<compat>\n" + _dump(compatibility) + "\n</compat>\n"
-                + tool_block +
+                + candidate_block + tool_block +
                 "写作要求：\n"
                 "- answer 用中文，先给最可能故障与根因，再给检查顺序与方案，最后给出需转售后/停用的条件；\n"
                 "- 结论中的 claim 必须对应证据清单里的 id：图谱证据用 E 编号，手册原文用 chunkId"
                 "（如 DOC:T20PRO-MANUAL#p3c2），不得自造编号；\n"
                 "- 不确定的地方明确说「不确定」，不要把相似案例说成因果；\n"
                 "- warnings 保留规则引擎给出的安全/保修告警原文，不要删减。\n"
+                + order_rules +
                 "按以下 JSON Schema 输出：\n" + _dump(FinalAnswerOutput.model_json_schema())
             ),
         },
