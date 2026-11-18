@@ -306,9 +306,21 @@ def _reverse_rank_handler(messages):
     }
 
 
+def test_apply_ranking_refuses_to_promote_escalation():
+    """升级/停用是安全边界，不是排序偏好：规则没要求升级时，LLM 不能自己升级。"""
+    d = _mk_diag(["F1"], ["更换轮组总成", "转官方售后检测"])
+    audit = llm_agent._apply_ranking(d, llm_agent._Ranking(
+        faults=[], solutions=[RankPick(nodeId="转官方售后检测"),
+                              RankPick(nodeId="更换轮组总成")], note=""))
+    assert [s["id"] for s in d.solutions] == ["更换轮组总成", "转官方售后检测"]
+    assert audit["locked"] is True
+    assert "escalation" in audit["locks"]
+
+
 def test_run_llm_applies_llm_ranking(store, model, monkeypatch):
     """重排结果必须进入 diagnosis，否则下游指标仍然看不见 LLM 的选择。"""
-    q = f"{model} 报 E11，左轮不转"
+    # 用不含升级类方案的题：E33 的候选是 重新安装水箱/水泵排气/水路除垢
+    q = f"{model} 报 E33，清水箱缺水"
     baseline = graph.run(store, question=q).diagnosis
 
     monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_reverse_rank_handler))

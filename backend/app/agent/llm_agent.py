@@ -110,9 +110,12 @@ def run_llm(
     # 通不过的事实只是不进推理，不影响其它槽位，避免一句话毁掉整轮对话。
     facts, rejected_facts = _gate_facts(store, question or "", getattr(llm_out, "facts", []) or [])
     actions = [f["nodeId"] for f in facts if f["kind"] == "action"]
+    # 只喂阳性检查：P2.1 的检查结果来自自由文本，极性靠模型推断，实测会把
+    # 「还是充不上」读成「检查结果阴性」并因此排除整条故障（H04 首选方案变空）。
+    # 阴性与「没做过」留给 P2.3 的按钮答案（显式极性）再落规则。
     fact_checks = [
         {"check": f["nodeId"], "fault": f.get("faultId") or "", "result": f["result"]}
-        for f in facts if f["kind"] == "check" and f.get("faultId")
+        for f in facts if f["kind"] == "check" and f.get("faultId") and f["result"] == "positive"
     ]
     step("facts", accepted=facts, rejected=rejected_facts,
          actions=actions, checks=len(fact_checks))
@@ -475,6 +478,15 @@ class _Ranking:
 
 
 _RANK_MAX = 4
+# 升级/停用类方案：属于安全边界，规则没要求时 LLM 不得把它们提到首位
+_ESCALATION = {"SOL:ESCALATE-SERVICE", "SOL:SAFETY-STOP"}
+_ESCALATION_HINTS = ("售后", "停用")
+
+
+def _is_escalation(item: dict[str, Any]) -> bool:
+    return item.get("id") in _ESCALATION or any(
+        hint in str(item.get("name", "")) for hint in _ESCALATION_HINTS
+    )
 
 
 def _candidate_evidence(d: Diagnosis, node_id: str) -> list[str]:
@@ -570,7 +582,14 @@ def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
             head = items[0]
             if ordered[0]["id"] != head["id"]:
                 audit["locked"] = True
+                audit.setdefault("locks", []).append("safety_stop")
                 ordered = [head] + [it for it in ordered if it["id"] != head["id"]]
+        if field == "solutions" and _is_escalation(ordered[0]) and not _is_escalation(items[0]):
+            # 升级/停用是安全边界，不是排序偏好：规则没要求升级时，LLM 不能自己升级。
+            # 实测 H01/H02 会把「转官方售后」提到「更换轮组总成」前面，答案对但首选方案错。
+            audit["locked"] = True
+            audit.setdefault("locks", []).append("escalation")
+            ordered = items[:]
         setattr(d, field, ordered)
         audit[field] = [it["id"] for it in ordered]
     return audit
