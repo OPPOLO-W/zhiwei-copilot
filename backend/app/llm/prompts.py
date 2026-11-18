@@ -22,8 +22,21 @@ from ..kg.store import GraphStore
 # ---------------------------------------------------------------------------
 
 
+class FactDraft(BaseModel):
+    """用户自述事实的草稿（P2）。只记录用户说过什么，不记录系统推理结论。"""
+
+    kind: Literal["action", "check", "cause"] = Field(
+        description="action=用户已经做过某个方案；check=用户已经做了某项检查；cause=用户直接说出根因"
+    )
+    ref: str = Field(description="方案/检查/根因的 code（如 CLEAN-WHEEL），也可写规范名")
+    result: Literal["positive", "negative", "unknown"] = Field(
+        default="positive", description="check 用：阳性=有该现象，阴性=没有；action 用 positive 表示做过"
+    )
+    quote: str = Field(default="", description="支撑这条事实的用户原话，必须逐字摘自用户问题")
+
+
 class SlotExtraction(BaseModel):
-    """查询解耦：从自然语言中抽取槽位（与 agent.slots.Slots 同构）。"""
+    """查询解耦：从自然语言中抽取槽位 + 用户自述事实（与 agent.slots.Slots 同构）。"""
 
     model: str | None = Field(default=None, description="型号代码，如 T20 PRO")
     code: str | None = Field(default=None, description="错误码，如 E11 / 10010")
@@ -32,6 +45,10 @@ class SlotExtraction(BaseModel):
     intent: Literal["troubleshoot", "network", "safety"] = "troubleshoot"
     safety_hint: bool = False
     replace_intent: bool = False
+    facts: list[FactDraft] = Field(
+        default_factory=list,
+        description="用户明确说「已经做过/已经检查过/就是某原因」的事实；没说就留空数组，不要推测",
+    )
     unresolved: list[str] = Field(default_factory=list, description="无法确定的槽位及原因")
 
 
@@ -174,14 +191,22 @@ def decompose_prompt(store: GraphStore, question: str) -> list[dict[str, str]]:
     # 实测 5 道口语题 0/5 全部落到「请补充症状」。给清单等于把生成题变成分类题，
     # 既提高召回，也天然满足「不得编造实体」。
     symptom_names = "、".join(sorted({n.name for n in store.nodes("Symptom") if n.name}))
+    solution_list = "、".join(
+        f"{n.props.get('code')}={n.name}" for n in store.nodes("Solution") if n.props.get("code")
+    )
+    check_list = "、".join(
+        f"{n.props.get('code')}={n.name}" for n in store.nodes("Check") if n.props.get("code")
+    )
     return [
         {"role": "system", "content": system_prompt(store)},
         {
             "role": "user",
             "content": (
-                "从下面这条用户问题中抽取故障排查槽位。\n"
+                "从下面这条用户问题中抽取故障排查槽位，以及用户【已经做过】的事。\n"
                 "【用户问题】\n<question>\n" + question + "\n</question>\n"
                 "【图谱症状清单】（symptom 只能从这里选）\n" + symptom_names + "\n"
+                "【图谱方案清单】（facts.ref 只能从这里选）\n" + solution_list + "\n"
+                "【图谱检查项清单】（facts.ref 只能从这里选）\n" + check_list + "\n"
                 "抽取规则：\n"
                 "- model：型号代码（如 T20 PRO、T20）。只填图谱覆盖的型号；不确定就置 null。\n"
                 "- code：错误码，E 开头两位或 100 开头的四位（如 E11、10010）；没有就 null。\n"
@@ -192,6 +217,14 @@ def decompose_prompt(store: GraphStore, question: str) -> list[dict[str, str]]:
                 "- intent：troubleshoot / network / safety 之一（提到配网、连不上、wifi 用 network；提到鼓包/漏液/冒烟等用 safety）。\n"
                 "- safety_hint：是否含电池鼓包/漏液/冒烟/起火/过热/进水/异味等高风险词。\n"
                 "- replace_intent：是否表达「换件/拆机/自己修」意图。\n"
+                "- facts：只记录用户【明确说出】的事实，没有就空数组。\n"
+                "  * action：用户已经做过某个方案，如「毛发我已经清理干净了」→ CLEAN-WHEEL；"
+                "「轮组换新了」→ REPLACE-WHEEL；「清水箱重装过」→ RESEAT-WATER-TANK。\n"
+                "  * check：用户已经做过某项检查，result 填检查看到的结论（positive=有该现象，negative=没有）。\n"
+                "  * cause：用户直接说出根因（例如「就是滤网堵了」），不确定就不要填。\n"
+                "  * quote 必须逐字摘自【用户问题】，不得改写；找不到原话就不输出这条事实。\n"
+                "  * 用户说「没做过/还没/不打算做」时不要输出 action；"
+                "检查阴性用 result=negative，不要用 action 表达。\n"
                 "- unresolved：无法确定的槽位及原因（没有就空数组）。\n"
                 "按以下 JSON Schema 输出：\n" + _dump(schema)
             ),

@@ -82,8 +82,11 @@ class Tools:
         ]
 
     def run_rules(self, model: str | None = None, code: str | None = None,
-                  symptom: str | None = None, case_no: str | None = None) -> dict[str, Any]:
-        d = diagnose(self.store, case_no=case_no, model=model, code=code, symptom=symptom)
+                  symptom: str | None = None, case_no: str | None = None,
+                  actions: list[str] | None = None,
+                  check_results: list[dict[str, str]] | None = None) -> dict[str, Any]:
+        d = diagnose(self.store, case_no=case_no, model=model, code=code, symptom=symptom,
+                     actions=actions, check_results=check_results)
         return d.to_dict()
 
     def retrieve_chain(self, model: str | None = None, code: str | None = None,

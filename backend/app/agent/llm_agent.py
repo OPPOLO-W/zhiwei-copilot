@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -87,8 +88,8 @@ def run_llm(
 
     # ---------- intake / decompose：确定性抽取 + LLM 解耦取并 ----------
     base = extract_slots(store, question or "")
-    llm_slots = _decompose(client, store, question or "")
-    slots = _merge_slots(store, base, llm_slots)
+    llm_out = _decompose(client, store, question or "")
+    slots = _merge_slots(store, base, llm_out)
     slots.case_no = case_no or slots.case_no
     if model:
         slots.model = model
@@ -96,13 +97,25 @@ def run_llm(
     slots.code = code or slots.code
     slots.symptom = symptom or slots.symptom
     step("intake", slots=slots.to_dict(), safetyHint=slots.safety_hint,
-         llmSlots=bool(llm_slots))
+         llmSlots=bool(llm_out))
 
     if not any([slots.model, slots.code, slots.symptom, slots.case_no]):
         return _deterministic._out_of_scope(slots, trace, started)
 
     subs = sub_questions(slots)
     step("decompose", subQuestions=[s["id"] for s in subs])
+
+    # ---------- facts：用户自述事实过门控后才进规则（P2） ----------
+    # 门控是硬要求：quote 必须是用户原话子串、实体必须在图里、检查必须能唯一确定故障。
+    # 通不过的事实只是不进推理，不影响其它槽位，避免一句话毁掉整轮对话。
+    facts, rejected_facts = _gate_facts(store, question or "", getattr(llm_out, "facts", []) or [])
+    actions = [f["nodeId"] for f in facts if f["kind"] == "action"]
+    fact_checks = [
+        {"check": f["nodeId"], "fault": f.get("faultId") or "", "result": f["result"]}
+        for f in facts if f["kind"] == "check" and f.get("faultId")
+    ]
+    step("facts", accepted=facts, rejected=rejected_facts,
+         actions=actions, checks=len(fact_checks))
 
     # ---------- 规则骨干：永远先跑，安全/网络规则不可被 LLM 跳过 ----------
     results: list[ToolResult] = []
@@ -119,10 +132,15 @@ def run_llm(
 
     backbone = execute({"tool": diag_tool, "args": {
         "model": slots.model, "code": slots.code, "symptom": slots.symptom,
-        "case_no": slots.case_no,
+        "case_no": slots.case_no, "actions": actions, "check_results": fact_checks,
     }})
-    diagnosis = diag_fn(store, case_no=slots.case_no, model=slots.model,
-                        code=slots.code, symptom=slots.symptom, question=question)
+    if use_rules:
+        diagnosis = diag_fn(store, case_no=slots.case_no, model=slots.model,
+                            code=slots.code, symptom=slots.symptom, question=question,
+                            actions=actions, check_results=fact_checks)
+    else:
+        diagnosis = diag_fn(store, case_no=slots.case_no, model=slots.model,
+                            code=slots.code, symptom=slots.symptom, question=question)
 
     # 查询落空：与 graph.run 同口径，直接给可解释结论，不做无谓探索
     if set(diagnosis.policies) & LOOKUP_POLICIES:
@@ -280,7 +298,7 @@ def _decompose(client: LLMClient, store: GraphStore, question: str) -> SlotExtra
     if not question.strip():
         return None
     try:
-        data = client.chat_json(decompose_prompt(store, question), max_tokens=800)
+        data = client.chat_json(decompose_prompt(store, question), max_tokens=1100)
         return SlotExtraction.model_validate(data)
     except (LLMError, ValueError, TypeError) as exc:
         log.warning("LLM 槽位抽取失败，回退确定性抽取: %s", exc)
@@ -311,6 +329,104 @@ def _merge_slots(store: GraphStore, base: Slots, llm: SlotExtraction | None) -> 
         if item and item not in base.unresolved:
             base.unresolved.append(item)
     return base
+
+
+# ---------------------------------------------------------------------------
+# P2.1：用户自述事实的门控
+# ---------------------------------------------------------------------------
+
+_FACT_LABEL = {"action": "Solution", "check": "Check", "cause": "Cause"}
+_QUOTE_STRIP = re.compile(r"[\s，。！？、；：,.!?;:~～\-—…（）()\[\]【】\"'“”‘’]+")
+_NEGATIONS = ("没有", "没", "未", "不打算", "不想", "不做", "还没")
+_FACT_MAX = 5
+
+
+def _norm(text: str) -> str:
+    """去掉空白与标点，只留可核对的内容字符。"""
+    return _QUOTE_STRIP.sub("", text or "")
+
+
+def _resolve_fact_node(store: GraphStore, ref: str, kind: str):
+    """ref 可以是节点 ID、code 或规范名；类型必须与 kind 一致，防止把方案当检查用。"""
+    label = _FACT_LABEL.get(kind)
+    if label is None:
+        return None
+    ref = (ref or "").strip()
+    if not ref:
+        return None
+    node = store.get(ref)
+    if node is not None and node.label == label:
+        return node
+    up = ref.upper()
+    for n in store.nodes(label):
+        code = str(n.props.get("code", "")).upper()
+        if (code and code == up) or n.name == ref:
+            return n
+    return None
+
+
+def _check_fault(store: GraphStore, check_id: str) -> str | None:
+    """检查项唯一覆盖的故障。覆盖多个（如左右轮共用的轴承检查）时不猜，留给追问。"""
+    faults = [n.id for _edge, n in store.neighbors(check_id, ["DETECTS"], "out", 10)
+              if n.label == "Fault"]
+    return faults[0] if len(faults) == 1 else None
+
+
+def _gate_facts(store: GraphStore, question: str,
+                drafts: list[Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """把 LLM 抽的用户事实过门控（P2.1）。
+
+    七道门：实体存在于图谱、quote 逐字来自用户问题、极性一致、检查唯一对应故障、
+    result 在枚举内、unknown 不写入、最多采信 `_FACT_MAX` 条。
+    通不过只丢这一条，不影响其它槽位与事实——一句话说错不该毁掉整轮对话。
+    """
+    qn = _norm(question)
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+
+    def drop(kind: str, ref: str, reason: str, quote: str = "") -> None:
+        rejected.append({"kind": kind, "ref": ref, "reason": reason, "quote": quote})
+
+    for draft in list(drafts)[: _FACT_MAX * 2]:
+        kind = str(getattr(draft, "kind", "") or "")
+        ref = str(getattr(draft, "ref", "") or "")
+        quote = str(getattr(draft, "quote", "") or "")
+        result = str(getattr(draft, "result", "positive") or "positive")
+        node = _resolve_fact_node(store, ref, kind)
+        if node is None:
+            drop(kind, ref, "unknown_entity", quote)
+            continue
+        nq = _norm(quote)
+        if len(nq) < 2 or nq not in qn:
+            # 模型改写过的 quote 无法核对，一律不采信：这是防幻觉的第一道也是最后一道
+            drop(kind, ref, "quote_not_verbatim", quote)
+            continue
+        negated = any(w in quote for w in _NEGATIONS)
+        if kind == "action" and (negated or result == "negative"):
+            drop(kind, ref, "negated_action", quote)
+            continue
+        if kind == "check" and negated and result == "positive":
+            drop(kind, ref, "polarity_mismatch", quote)
+            continue
+        if result not in ("positive", "negative", "unknown") or result == "unknown":
+            drop(kind, ref, "result_unknown", quote)
+            continue
+        item: dict[str, Any] = {"kind": kind, "nodeId": node.id, "name": node.name,
+                                "ref": ref, "quote": quote, "result": result}
+        if kind == "check":
+            fault_id = _check_fault(store, node.id)
+            if fault_id is None:
+                drop(kind, ref, "check_covers_multiple_faults", quote)
+                continue
+            item["faultId"] = fault_id
+        elif kind == "action":
+            item["effect"] = ("excludes" if node.props.get("excludesCauses")
+                              else "exhausts" if node.props.get("exhaustsSelf") else "none")
+        if len(accepted) >= _FACT_MAX:
+            drop(kind, ref, "over_limit", quote)
+            continue
+        accepted.append(item)
+    return accepted, rejected
 
 
 def _plan(client: LLMClient, store: GraphStore, question: str, slots: Slots,

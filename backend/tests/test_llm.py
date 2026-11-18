@@ -13,7 +13,7 @@ from backend.app.agent import graph, llm_agent
 from backend.app.agent.slots import Slots, extract_slots
 from backend.app.config import Settings
 from backend.app.llm.client import LLMClient, LLMError, LLMUnavailable
-from backend.app.llm.prompts import RankPick, SlotExtraction
+from backend.app.llm.prompts import FactDraft, RankPick, SlotExtraction
 from backend.app.reasoning.service import Diagnosis
 
 
@@ -339,3 +339,62 @@ def test_run_llm_skips_ranking_when_ablation_flag_set(store, model, monkeypatch)
     assert rank_steps and rank_steps[0]["driver"] == "rule"
     assert [f["id"] for f in run.diagnosis.faults] == [f["id"] for f in baseline.faults]
     assert [s["id"] for s in run.diagnosis.solutions] == [s["id"] for s in baseline.solutions]
+
+
+# ---------------------------------------------------------------------------
+# P2.1：用户自述事实的门控
+# ---------------------------------------------------------------------------
+def test_gate_facts_keeps_only_verbatim_action(store):
+    """quote 必须是用户原话子串：模型改成「轮组」就核对不上，宁可不采信。"""
+    q = "T20 PRO 报 E11，左轮的毛发我已经清理干净了，还是卡"
+    good = FactDraft(kind="action", ref="CLEAN-WHEEL", quote="左轮的毛发我已经清理干净了")
+    bad = FactDraft(kind="action", ref="CLEAN-WHEEL", quote="轮组的毛发我已经清理干净了")
+    accepted, rejected = llm_agent._gate_facts(store, q, [good, bad])
+    assert [f["nodeId"] for f in accepted] == ["SOL:CLEAN-WHEEL"]
+    assert accepted[0]["effect"] == "excludes"
+    assert [r["reason"] for r in rejected] == ["quote_not_verbatim"]
+
+
+def test_gate_facts_rejects_negated_action_and_unknown_entity(store):
+    q = "T20 PRO 报 E11，毛发的清理还没做，轮组也没换"
+    drafts = [
+        FactDraft(kind="action", ref="CLEAN-WHEEL", quote="毛发的清理还没做"),
+        FactDraft(kind="action", ref="CLEAN-MOON", quote="轮组也没换"),
+    ]
+    accepted, rejected = llm_agent._gate_facts(store, q, drafts)
+    assert accepted == []
+    assert {r["reason"] for r in rejected} == {"negated_action", "unknown_entity"}
+
+
+def test_gate_facts_rejects_check_covering_multiple_faults(store):
+    """轴承检查同时覆盖左右轮：跨侧误排除比不排除更糟，直接不采信。"""
+    q = "T20 PRO 报 E11，我检查了轮组轴承间隙，还是有旷量"
+    draft = FactDraft(kind="check", ref="CHECK-WHEEL-BEARING", quote="检查了轮组轴承间隙",
+                      result="positive")
+    accepted, rejected = llm_agent._gate_facts(store, q, [draft])
+    assert accepted == []
+    assert rejected[0]["reason"] == "check_covers_multiple_faults"
+
+
+def test_run_llm_applies_user_action_facts(store, model, monkeypatch):
+    """端到端：用户说「毛发清理过了」，首选方案从清理轮组换成更换轮组总成。"""
+
+    def handler(messages):
+        if "抽取故障排查槽位" in messages[-1]["content"]:
+            return {"model": None, "code": None, "symptom": None, "environment": None,
+                    "intent": "troubleshoot", "safety_hint": False, "replace_intent": False,
+                    "facts": [{"kind": "action", "ref": "CLEAN-WHEEL",
+                               "result": "positive", "quote": "轮组的毛发我已经清理干净了"}],
+                    "unresolved": []}
+        return _happy_handler(messages)
+
+    q = f"{model} 报 E11，左轮不转。轮组的毛发我已经清理干净了，还是卡"
+    baseline = graph.run(store, question=q).diagnosis
+    assert baseline.solutions and baseline.solutions[0]["name"] == "清理轮组缠绕物"
+
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(handler))
+    run = llm_agent.run_llm(store, question=q)
+
+    facts_steps = [t for t in run.trace if t["node"] == "facts"]
+    assert facts_steps and facts_steps[0]["accepted"][0]["nodeId"] == "SOL:CLEAN-WHEEL"
+    assert run.diagnosis.solutions[0]["name"] == "更换轮组总成"
