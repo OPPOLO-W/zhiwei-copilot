@@ -4,6 +4,7 @@ import { useState } from "react";
 //   retry  = 确定性路径的覆盖度查表重试（无 LLM）
 //   reflect = LLM 路径的语义反思（缺什么、为何缺、是否有新矛盾）
 // verify 是确定性矛盾校验，两条路径共用同一份实现，LLM 不得改写。
+// rank 是 P1 的候选重排：候选由规则给定，LLM 只改顺序，安全方案会被锁在首位。
 const LABEL = {
   intake: "解析槽位",
   decompose: "问题拆解",
@@ -11,6 +12,7 @@ const LABEL = {
   act: "执行工具",
   retry: "重试（规则策略）",
   reflect: "反思（LLM）",
+  rank: "候选重排（LLM）",
   verify: "矛盾校验",
   finalize: "生成答案",
   run_rules: "规则推理",
@@ -31,7 +33,7 @@ export default function Timeline({ trace, runId }) {
         </div>
         <div style={{ color: "var(--ink-3)", fontSize: 11.5, lineHeight: 1.8 }}>
           尚未运行。确定性路径生成 intake → decompose → plan → act → retry → verify → finalize；
-          LLM 路径把 retry 换成 reflect（语义反思）。
+          LLM 路径把 retry 换成 reflect（语义反思），并在 verify 前多一个 rank（候选重排）。
         </div>
       </div>
     );
@@ -71,7 +73,11 @@ export default function Timeline({ trace, runId }) {
                   ? "矛盾校验：确定性实现，两条路径共用，LLM 不得改写"
                   : s.node === "retry"
                     ? "覆盖度重试：按缺失子问题查表放宽检索，非语义反思"
-                    : undefined
+                    : s.node === "rank"
+                      ? s.driver === "llm"
+                        ? `候选重排：规则给候选，LLM 只排序${s.locked ? "（安全方案被锁回首位）" : ""}`
+                        : "候选重排：LLM 返回原序或未调用，保持规则顺序"
+                      : undefined
               }
             >
               <div className="n">
