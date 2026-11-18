@@ -599,6 +599,14 @@ body {
   white-space: nowrap;
   padding-top: 2px;
 }
+/* LLM 自标注的结论用蓝色区分：一眼能看出「这句是模型写的」还是「规则推出来的」 */
+.claim-llm .rule-ids {
+  color: var(--blue);
+}
+.claim:hover {
+  background: var(--signal-soft);
+  cursor: default;
+}
 .claim .ev-btn {
   margin-left: auto;
 }

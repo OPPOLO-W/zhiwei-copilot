@@ -133,6 +133,32 @@ def test_run_llm_produces_answer_with_llm(store, model, monkeypatch):
     assert run.extra["llm"]["calls"] >= 1
 
 
+def test_run_llm_keeps_llm_claims(store, model, monkeypatch):
+    """答案自带 claims 必须回填，否则「这段话引用了什么」只能从字符串反推。"""
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
+    run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
+    assert run.claims, "LLM 答案的 claims 必须保留"
+    assert run.claims[0]["source"] == "llm"
+    assert run.claims[0]["evidenceIds"] == ["E1"]
+    assert run.claims[0]["ruleIds"] == []
+    assert run.extra["claimsSource"] == "llm"
+
+
+def test_run_llm_merges_llm_warnings_with_rule_warnings(store, monkeypatch):
+    """LLM 追加的告警要保留，规则告警也不能被模型丢掉。"""
+
+    def handler(messages):
+        if "带引用的排查答复" in messages[-1]["content"]:
+            return {"answer": "电池鼓包请立即停用并联系售后。", "claims": [],
+                    "warnings": ["请勿自行拆解电池。"]}
+        return _happy_handler(messages)
+
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(handler))
+    run = llm_agent.run_llm(store, question="电池鼓包了还能继续用吗")
+    assert "请勿自行拆解电池。" in run.warnings
+    assert set(run.diagnosis.warnings).issubset(set(run.warnings))
+
+
 def test_run_llm_falls_back_on_llm_error(store, model, monkeypatch):
     def failing(messages):
         raise LLMError("boom")
@@ -142,6 +168,9 @@ def test_run_llm_falls_back_on_llm_error(store, model, monkeypatch):
     assert run.status == "ok"
     assert run.diagnosis.faults, "LLM 全链路失败也必须退回确定性推理"
     assert "以上判断仅用于辅助排查" in run.answer
+    assert run.extra["claimsSource"] == "rule"
+    assert all(c.get("source") != "llm" for c in run.claims)
+    assert run.claims == run.diagnosis.claims, "模板答案与规则 claims 同源"
 
 
 def test_run_llm_disabled_delegates_to_deterministic(store, model, monkeypatch):

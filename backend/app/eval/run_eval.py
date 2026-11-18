@@ -85,12 +85,16 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
                               use_reflection=use_reflection, use_rules=use_rules)
     d = run.diagnosis
     covered = [v for v in (run.coverage or {}).values() if v == "covered"]
+    # 答案自带的 claims（LLM 路径）优先：悬空引用/可信度要量「这段话的引用」，
+    # 而不是永远拿规则模板的 claims 去量模型的措辞。
+    llm_claims = getattr(run, "claims", None) or []
     return {
         "answer": run.answer,
         "faultCodes": [f["code"] for f in d.faults if f.get("code")],
         "solutionNames": [s["name"] for s in d.solutions],
         "triples": [[t[0], t[1], t[2]] for t in (e["triple"] for e in d.evidence if len(e["triple"]) == 3)],
-        "claims": d.claims,
+        "claims": llm_claims or d.claims,
+        "claimsSource": "llm" if llm_claims else "rule",
         "checkNames": [c["name"] for c in d.checks],
         "evidenceIds": _evidence_ids(d),
         "latencyMs": 0,

@@ -94,17 +94,29 @@ export default function AnswerCard({ result, onEvidence }) {
           <>
             <div className="sec-title">可追溯结论</div>
             <div className="claims">
-              {result.claims.map((c, i) => (
-                <div className="claim" key={i}>
-                  <span className="rule-ids">{(c.ruleIds || []).join(" ")}</span>
-                  <span>{c.text}</span>
-                  {!!(c.evidenceIds || []).length && (
-                    <button className="ev-btn" onClick={() => onEvidence?.(c.evidenceIds[0])}>
-                      证据 {c.evidenceIds.length}
-                    </button>
-                  )}
-                </div>
-              ))}
+              {result.claims.map((c, i) => {
+                const evId = (c.evidenceIds || [])[0];
+                const fromLlm = c.source === "llm";
+                return (
+                  <div
+                    className={`claim${fromLlm ? " claim-llm" : ""}`}
+                    key={i}
+                    // 悬停即高亮右侧对应证据：结论与证据之间不再需要手动对编号
+                    onMouseEnter={() => evId && onEvidence?.(evId)}
+                    onMouseLeave={() => onEvidence?.(null)}
+                  >
+                    <span className={`rule-ids${fromLlm ? " accent" : ""}`}>
+                      {fromLlm ? "LLM" : (c.ruleIds || []).join(" ")}
+                    </span>
+                    <span>{c.text}</span>
+                    {!!evId && (
+                      <button className="ev-btn" onClick={() => onEvidence?.(evId)}>
+                        证据 {(c.evidenceIds || []).length}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

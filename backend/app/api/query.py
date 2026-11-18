@@ -40,6 +40,27 @@ def _slots_from_request(store: GraphStore, req: QueryRequest) -> dict[str, Any]:
     return {"model": req.model, "code": req.code, "symptom": req.symptom, "case_no": req.case_no}
 
 
+def _merge_warnings(*groups: list[str] | None) -> list[str]:
+    """规则告警与 LLM 告警都要保留：去重保序，不排序（安全提示应当排在最前）。"""
+    out: list[str] = []
+    for group in groups:
+        for item in group or []:
+            text = str(item).strip()
+            if text and text not in out:
+                out.append(text)
+    return out
+
+
+def _final_claims(run, diagnosis) -> list[dict[str, Any]]:
+    """优先用答案自带的 claims；没有则回落规则链 claims。
+
+    LLM 路径下 `run.claims` 是模型为这段答案自己标注的引用，而 `diagnosis.claims`
+    是规则模板的引用——两者混用会把「模型引用的证据」与「规则产出的证据」算成同一件事。
+    """
+    claims = getattr(run, "claims", None) or []
+    return claims or diagnosis.claims
+
+
 def _run_agent_dispatch(store: GraphStore, req: QueryRequest):
     """Agent 执行入口：`useLlm` 且已配置 key 时走 LLM 驱动，否则确定性实现。"""
     if req.use_llm:
@@ -97,7 +118,8 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             d = run.diagnosis
             payload = QueryResponse(
                 runId=run_id, mode="agent", status=run.status, answer=run.answer,
-                confidence=d.confidence, claims=d.claims, warnings=d.warnings,
+                confidence=d.confidence, claims=_final_claims(run, d),
+                warnings=_merge_warnings(run.warnings, d.warnings),
                 graph=d.graph, proof={"mode": "agent", "derivationTree": d.proof_tree},
                 trace=run.trace, evidence=d.evidence, slots=run.slots,
                 detail={
@@ -106,6 +128,8 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                     "compatibility": run.extra.get("compatibility"),
                     "similarCases": run.extra.get("similarCases"),
                     "issues": run.extra.get("issues"),
+                    # none = 确定性路径（claims 来自规则链）；llm = 答案自带 claims
+                    "claimsSource": run.extra.get("claimsSource"),
                     # 与 rule 模式保持同构，前端面板不必为两种模式写两套取值
                     "faults": d.faults, "causes": d.causes, "solutions": d.solutions,
                     "checks": d.checks, "policies": d.policies, "notes": d.notes,
@@ -125,10 +149,14 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             final_answer = run.answer or agent_d.answer
             agent_payload = agent_d.to_dict()
             agent_payload["answer"] = final_answer
+            # 对比模式下 Agent 一侧的 claims 同样要指向它自己的答案，而不是规则模板
+            agent_payload["claims"] = _final_claims(run, agent_d)
+            agent_payload["warnings"] = _merge_warnings(run.warnings, agent_d.warnings)
             payload = QueryResponse(
                 runId=run_id, mode="compare", status="ok",
                 answer=final_answer, confidence=agent_d.confidence,
-                claims=agent_d.claims, warnings=sorted(set(rule_d.warnings + agent_d.warnings)),
+                claims=agent_payload["claims"],
+                warnings=sorted(set(rule_d.warnings + agent_payload["warnings"])),
                 graph=agent_d.graph, proof={"mode": "hybrid", "derivationTree": rule_d.proof_tree},
                 trace=run.trace, evidence=agent_d.evidence, slots=run.slots,
                 ruleResult=rule_d.to_dict(), agentResult=agent_payload,

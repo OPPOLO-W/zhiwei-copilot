@@ -37,6 +37,11 @@ class AgentRun:
     answer: str
     status: str = "ok"
     extra: dict[str, Any] = field(default_factory=dict)
+    # 最终答案自带的结论与告警。确定性路径留空（调用方回落 diagnosis.claims）；
+    # LLM 路径回填 FinalAnswerOutput 的 claims/warnings，使「答案里说了什么」可被单独度量，
+    # 而不是只能从 answer 字符串里反推。
+    claims: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def run(

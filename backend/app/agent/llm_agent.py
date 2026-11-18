@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from ..config import get_settings
 from ..kg.store import GraphStore
 from ..llm.client import LLMClient, LLMError, get_client
 from ..llm.prompts import (
+    Claim,
     FinalAnswerOutput,
     PlanOutput,
     ReflectionOutput,
@@ -216,9 +218,12 @@ def run_llm(
     # ---------- finalize：LLM 生成带引用答复（失败回退模板）----------
     # _finalize 永远返回字符串，不能用「is not None」判断；改看本轮是否真的成功调用了 LLM
     calls_before = llm_usage["calls"]
-    answer = _finalize(client, store, question or "", slots, diagnosis,
-                       similar, compat, coverage, llm_usage)
+    final = _finalize(client, store, question or "", slots, diagnosis,
+                      similar, compat, coverage, llm_usage)
+    answer = final.text
+    claims_source = "llm" if any(c.get("source") == "llm" for c in final.claims) else "rule"
     step("finalize", coverage=coverage, llmAnswer=llm_usage["calls"] > calls_before,
+         claims=len(final.claims), claimsSource=claims_source,
          latencyMs=int((time.perf_counter() - started) * 1000))
 
     return _deterministic.AgentRun(
@@ -226,8 +231,10 @@ def run_llm(
         coverage=coverage, reflections=reflections,
         tool_results=[r.to_dict() for r in results], trace=trace,
         answer=answer, status="ok",
+        claims=final.claims, warnings=final.warnings,
         extra={"compatibility": compat, "similarCases": similar[:5], "issues": issues,
-               "unknownModel": slots.model_unknown, "llm": llm_usage},
+               "unknownModel": slots.model_unknown, "llm": llm_usage,
+               "claimsSource": claims_source},
     )
 
 
@@ -325,13 +332,28 @@ def _reflect(client: LLMClient, store: GraphStore, question: str, slots: Slots,
         return None
 
 
+@dataclass
+class _Final:
+    """finalize 节点的产物。
+
+    把「答案文本」和「答案自带的结论/告警」分开返回：以前只取 `out.answer`，
+    LLM 输出的 claims 被直接丢弃，下游只能拿规则链的 claims 当作答案的引用，
+    于是「LLM 引用了什么证据」既无法展示也无法度量。
+    """
+
+    text: str
+    claims: list[dict[str, Any]]
+    warnings: list[str]
+
+
 def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
               diagnosis: Diagnosis, similar: list[dict[str, Any]],
               compat: list[dict[str, Any]], coverage: dict[str, str],
-              usage: dict[str, Any]) -> str:
+              usage: dict[str, Any]) -> _Final:
     """LLM 组答案；失败或产出可疑时回退模板组答案。
 
     无论 LLM 写了什么，规则告警与免责声明都会被强制保留（安全边界）。
+    返回的 claims 标记 `source="llm"`，与规则链 claims（`ruleIds` 非空）可区分。
     """
     try:
         data = client.chat_json(
@@ -343,11 +365,47 @@ def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
         _bump(usage, client)
         text = (out.answer or "").strip()
         if not text:
-            return _compose_safe(diagnosis, similar, compat, slots, coverage)
-        return _guard_answer(text, diagnosis)
+            return _fallback_final(diagnosis, similar, compat, slots, coverage)
+        return _Final(
+            text=_guard_answer(text, diagnosis),
+            claims=[_claim_payload(c) for c in out.claims],
+            warnings=_merge_warnings(diagnosis.warnings, out.warnings),
+        )
     except (LLMError, ValueError, TypeError) as exc:
         log.warning("LLM 答案生成失败，回退模板组答案: %s", exc)
-        return _compose_safe(diagnosis, similar, compat, slots, coverage)
+        return _fallback_final(diagnosis, similar, compat, slots, coverage)
+
+
+def _fallback_final(diagnosis: Diagnosis, similar, compat, slots: Slots,
+                    coverage) -> _Final:
+    """模板组答案时，claims 沿用规则链的（模板答案与它们同源）。"""
+    return _Final(
+        text=_compose_safe(diagnosis, similar, compat, slots, coverage),
+        claims=[dict(c) for c in diagnosis.claims],
+        warnings=list(diagnosis.warnings),
+    )
+
+
+def _claim_payload(claim: Claim) -> dict[str, Any]:
+    """LLM claim → 响应契约：补 `ruleIds=[]` 与 `source="llm"`，前端不必分叉渲染。"""
+    return {
+        "text": claim.text,
+        "evidenceIds": list(claim.evidenceIds),
+        "confidence": claim.confidence,
+        "ruleIds": [],
+        "source": "llm",
+    }
+
+
+def _merge_warnings(*groups: list[str] | None) -> list[str]:
+    """多来源告警去重保序：规则告警与 LLM 告警都要保留。"""
+    out: list[str] = []
+    for group in groups:
+        for item in group or []:
+            text = str(item).strip()
+            if text and text not in out:
+                out.append(text)
+    return out
 
 
 def _compose_safe(d: Diagnosis, similar, compat, slots: Slots, coverage) -> str:
