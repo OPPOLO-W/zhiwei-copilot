@@ -110,13 +110,13 @@ class FinalAnswerOutput(BaseModel):
     answer: str
     claims: list[Claim] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    faults: list[RankPick] = Field(
+    faultOrder: list[str] = Field(
         default_factory=list,
-        description="候选故障重排；候选清单存在时必须原样列出全部 nodeId，各一次",
+        description="候选故障 nodeId 的重排结果；有候选清单时必须原样列出全部 nodeId，各一次",
     )
-    solutions: list[RankPick] = Field(
+    solutionOrder: list[str] = Field(
         default_factory=list,
-        description="候选方案重排；首位即答复里最先推荐的方案",
+        description="候选方案 nodeId 的重排结果；首位即答复里最先推荐的方案",
     )
     note: str = Field(default="", description="一句话说明排序依据")
 
@@ -331,9 +331,9 @@ def finalize_prompt(
             + _dump(candidates) + "\n</candidates>\n"
         )
         order_rules = (
-            "- 先排序再写答案：faults / solutions 各列出候选清单里的全部 nodeId，每个恰好一次，"
-            "只能重排、不能新增或删除；\n"
-            "- solutions 的第一位必须就是 answer 里最先推荐的方案，两处口径必须一致；\n"
+            "- 先排序再写答案：faultOrder / solutionOrder 只写 nodeId 字符串（不带理由），"
+            "各列出候选清单里的全部 nodeId，每个恰好一次，只能重排、不能新增或删除；\n"
+            "- solutionOrder 的第一位必须就是 answer 里最先推荐的方案，两处口径必须一致；\n"
             "- 若告警含「停止使用/转官方售后」等安全边界，安全方案必须排第一，其余才可调整；\n"
             "- 没有把握时保持候选清单原顺序——原顺序即规则结论；note 一句话说明排序依据。\n"
         )

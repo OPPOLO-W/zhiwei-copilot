@@ -601,7 +601,9 @@ def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
         ordered: list[dict[str, Any]] = []
         seen: set[str] = set()
         for pick in picks:
-            node_id = str(getattr(pick, "nodeId", "") or "")
+            # 兼容两种形态：纯 nodeId 字符串（P5.1 起，省 token）或带理由的 RankPick
+            node_id = pick if isinstance(pick, str) else str(getattr(pick, "nodeId", "") or "")
+            node_id = node_id.strip()
             if node_id not in index:
                 audit["rejected"].append(node_id)
                 continue
@@ -609,7 +611,7 @@ def _apply_ranking(d: Diagnosis, ranking: _Ranking | None) -> dict[str, Any]:
                 continue
             seen.add(node_id)
             ordered.append(index[node_id])
-            for ev in getattr(pick, "evidenceIds", None) or []:
+            for ev in ([] if isinstance(pick, str) else getattr(pick, "evidenceIds", None) or []):
                 if ev in allowed[node_id]:
                     audit["evidenceHits"] += 1
                 else:
@@ -680,8 +682,8 @@ def _finalize(client: LLMClient, store: GraphStore, question: str, slots: Slots,
             return _fallback_final(diagnosis, similar, compat, slots, coverage)
         claims, dropped = _verify_claims(out.claims, evidence)
         ranking = None
-        if cands and (out.faults or out.solutions):
-            ranking = _Ranking(faults=list(out.faults), solutions=list(out.solutions),
+        if cands and (out.faultOrder or out.solutionOrder):
+            ranking = _Ranking(faults=list(out.faultOrder), solutions=list(out.solutionOrder),
                                note=out.note)
         audit = _apply_ranking(diagnosis, ranking)
         audit["merged"] = True

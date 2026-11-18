@@ -315,10 +315,8 @@ def _reverse_rank_handler(messages):
     raw = text.split("<candidates>", 1)[1].split("</candidates>", 1)[0]
     cands = json.loads(raw)
     out = dict(_happy_handler(messages))
-    out["faults"] = [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
-                     for c in reversed(cands["faults"])]
-    out["solutions"] = [{"nodeId": c["nodeId"], "evidenceIds": [], "reason": "test"}
-                        for c in reversed(cands["solutions"])]
+    out["faultOrder"] = [c["nodeId"] for c in reversed(cands["faults"])]
+    out["solutionOrder"] = [c["nodeId"] for c in reversed(cands["solutions"])]
     out["note"] = "reverse"
     return out
 

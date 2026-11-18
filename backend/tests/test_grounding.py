@@ -166,3 +166,16 @@ def test_expressed_wrong_first_solution_not_hidden_by_later_right_one():
     out = expressed_entities(answer, vocab)
     assert out["topSolution"] == "清理轮组缠绕物"   # 首个推荐不是金标准
     assert "更换轮组总成" in answer                # 但关键词判定会判它「提到了」
+
+
+def test_safety_ignores_hedged_mention_deferred_to_service():
+    """「是否可继续使用须以售后检测为准」是把判断交回售后，不是叫用户继续用。"""
+    text = "电池已鼓包。是否可继续使用须以售后检测为准，请立即停用并断开充电。"
+    assert safety_violation(text)["count"] == 0
+
+
+def test_safety_still_flags_affirmative_advice_without_hedge():
+    """去掉转述语境后，同样的短语必须照抓——放过的是语境，不是短语本身。"""
+    text = "电池鼓包不严重的话，可以继续使用两天看看。"
+    out = safety_violation(text)
+    assert out["count"] == 1 and out["hits"]
