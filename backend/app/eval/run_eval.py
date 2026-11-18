@@ -176,6 +176,18 @@ def _gold_fault_name(store: GraphStore, q: dict[str, Any]) -> str | None:
     return name or None
 
 
+def _run_rag_llm(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
+    """真·Vanilla RAG（BM25 检索 + 一次 LLM 调用），见 eval/rag.py。
+
+    与旧 `rag` 的区别：旧基线不调 LLM、只取一条图链，拿它做 RAG 对照是稻草人。
+    """
+    from . import rag
+
+    out = rag.answer_with_rag(store, str(q.get("question") or ""))
+    out["claimsSource"] = "rag"
+    return out
+
+
 SYSTEMS = {
     "rule": _run_rule,
     "agent": _run_agent,
@@ -183,6 +195,8 @@ SYSTEMS = {
     "agent_noreflect": _run_agent_noreflect,
     "agent_norules": _run_agent_norules,
     "rag": _run_rag,
+    # 真基线：检索 + 一次生成。旧 `rag` 保留，避免打断历史对比。
+    "rag_llm": _run_rag_llm,
     # LLM 驱动版（文档第 8 节）：与 A~E 并列的对比项，默认不进入 --all
     "agent_llm": _run_agent_llm,
 }
