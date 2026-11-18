@@ -425,6 +425,11 @@ B 组答出了正确故障名，但跳过了鉴别性检查，直接给出换件
 
 ### 8.5 补测：LLM 路径与确定性路径的 50 题对照（2026-11-18）
 
+> **这一节的「逐位相同」是 P0 之前的代码状态，现在已不成立。** 当时评测器把 LLM 路径的
+> fault/solution/claims 全部取自规则结构，LLM 只改答案文本，所以指标必然相同；P0 修掉了这个口径
+> （claims 回填 + `decision/expressed` 双评分 + 真 RAG 基线），P1 又加了候选重排，当前结论见
+> `reports/p0-attribution.md`、`reports/p1-rerank.md`、`reports/p2-multiturn.md`。
+
 前面 A~E 五组都是确定性路径。A3 阶段接入 LLM 后，`agent_llm` 一直是 opt-in、只做过单题冒烟，
 没有 50 题数据——这是一个真实的空缺：**简历与答辩里能说「接入了 LLM」，却说不出它带来了什么**。
 本节补上这组对照（同一后端 `KG_BACKEND=memory`，同一 50 题，各跑 1 次）。
@@ -488,9 +493,11 @@ LLM 的 `ReflectionOutput.coverage` 不强制给全 q1~q5，只回 `{"q3": "miss
 | 单一机型 | 只有 T20 PRO 语料，CQ7 只能返回覆盖清单 | 抽取层不绑定型号，补 T10/T30 语料即可扩；跨型号评测题已预留 |
 | 模板代理案例 | 46 条 `FAQCase` 里 24 条是模板生成（`needsReview=true`） | 继续抓同类机型真实 FAQ，按同一台账审核替换 |
 | 重试产出不被指标覆盖 | 重试在 6/50 题触发且都补全了覆盖度，但补的是相似案例类辅助上下文，`answer_correct` / `faultF1` 测不到（§8.2） | 补一个「上下文增益」指标，或让重试产出**待验证假设**而非补检索，例如主动反查「用户是否已执行某动作」 |
-| 闭世界假设的代价 | Q028 类问题无法利用口头前提 | 加 `ACTION_TAKEN` 事实与对应规则 |
+| 闭世界假设的代价 | 已补：动作事实（R25/R26/R27）+ 会话 + 追问（§P2） | 见 `reports/p2-multiturn.md`；剩 H16 这类「图谱里只有一条根因」的问题仍问不出来 |
 | Neo4j 时延 | 规则 P50 327ms、Agent 719ms（内存后端为个位数毫秒） | 事实投影每次全图扫描 + 每跳一次 Bolt 往返；缓存投影后有望到 0.1s 量级 |
-| LLM 路径零增益且慢 107 倍 | 50 题对照（§8.5）：六个正确性指标逐位相同，P50 从 86ms 涨到 9.2s | 只有单次采样，无方差；若要下「LLM 无用」的结论需 repeat 3，且应换一套答案不由规则链决定的题 |
+| 「LLM 零增益」的旧结论已作废 | P0 发现原评测器只采信规则结构（§8.5 顶部说明）；修口径后 50 题 topSolution 0.79→0.86、难题集 0/15→8/15 | 见 `reports/p0-attribution.md`、`reports/p1-rerank.md` |
+| 追问只问一次 | `session.asked_checks` 非空即不再追问；H14 答完收窄到轴承间隙，但没有第二问 | 若要二问，先补图谱里 `CONFIRMED_BY` 的检查项覆盖（E23 只有一条根因就是例子） |
+| H05 首选仍是「转官方售后」 | 种子置信度 `ESCALATE-SERVICE` 0.70 > `REPLACE-LDS` 0.60 | 这是规则偏好而非 LLM 能力；改 cf 会牵动全部方案排序，留作开放项 |
 | 无人工双盲评分 | Explainability Score 与 kappa 无数据 | 需两人盲评 50 题 × 5 组，工作量大，本轮未做 |
 | 抽象类计数为 0 | `Case` 自身 0 实例 | 多标签建模的必然结果，非缺数据（`docs/ontology.md` 已注明） |
 
@@ -512,7 +519,7 @@ python -m backend.app.kg.loader --reset     # → Neo4j
 # 3) 评测（五组 × 3 次）
 python -m backend.app.eval.run_eval --all --repeat 3
 # 4) 测试
-python -m pytest backend/tests -q            # 143 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
+python -m pytest backend/tests -q            # 191 passed, 2 skipped
 # 5) 起服务
 uvicorn backend.app.main:app --port 8000
 # 6) 前端
