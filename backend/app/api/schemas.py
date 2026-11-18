@@ -47,6 +47,7 @@ class QueryResponse(BaseModel):
     trace: list[dict[str, Any]] = Field(default_factory=list)
     evidence: list[dict[str, Any]] = Field(default_factory=list)
     slots: dict[str, Any] = Field(default_factory=dict)
+    askUser: dict[str, Any] | None = Field(default=None, description="需要用户回答的追问（checkId/问题/选项）")
     latencyMs: int = 0
     ruleResult: dict[str, Any] | None = None
     agentResult: dict[str, Any] | None = None

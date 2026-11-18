@@ -63,7 +63,8 @@ def _final_claims(run, diagnosis) -> list[dict[str, Any]]:
 
 
 def _run_agent_dispatch(store: GraphStore, req: QueryRequest, prior_facts: list[dict] | None = None,
-                        inherited: dict[str, Any] | None = None):
+                        inherited: dict[str, Any] | None = None,
+                        asked_checks: list[str] | None = None):
     """Agent 执行入口：`useLlm` 且已配置 key 时走 LLM 驱动，否则确定性实现。
 
     `inherited` 是会话里带下来的槽位：追问句（「还是不行」）自己抽不出型号/错误码，
@@ -78,7 +79,9 @@ def _run_agent_dispatch(store: GraphStore, req: QueryRequest, prior_facts: list[
         from ..agent.llm_agent import run_llm
 
         return run_llm(store, question=req.question, model=model, code=code,
-                       symptom=symptom, case_no=case_no, prior_facts=prior_facts)
+                       symptom=symptom, case_no=case_no, prior_facts=prior_facts,
+                       check_results=req.check_results, allow_ask=True,
+                       asked_checks=asked_checks)
     return agent_graph.run(store, question=req.question, model=model, code=code,
                            symptom=symptom, case_no=case_no)
 
@@ -129,13 +132,17 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             # 传原始请求字段而不是预抽结果：Agent 会自己抽槽位，
             # 二次注入会让「型号未收录」标记被当成结构化参数覆盖掉。
             run = _run_agent_dispatch(store, req, prior_facts=session.facts,
-                                      inherited=session.slots)
+                                      inherited=session.slots,
+                                      asked_checks=session.asked_checks)
             d = run.diagnosis
             sessions.add_facts(session, run.extra.get("facts") or [])
+            if run.extra.get("askUser"):
+                sessions.add_asked(session, [run.extra["askUser"]["checkId"]])
             session.last_run_id = run_id
             payload = QueryResponse(
                 runId=run_id, sessionId=session.session_id, mode="agent",
                 status=run.status, answer=run.answer,
+                askUser=run.extra.get("askUser"),
                 confidence=d.confidence, claims=_final_claims(run, d),
                 warnings=_merge_warnings(run.warnings, d.warnings),
                 graph=d.graph, proof={"mode": "agent", "derivationTree": d.proof_tree},
@@ -166,9 +173,12 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                               symptom=slots["symptom"] or session.slots.get("symptom"),
                               check_results=req.check_results)
             run = _run_agent_dispatch(store, req, prior_facts=session.facts,
-                                      inherited=session.slots)
+                                      inherited=session.slots,
+                                      asked_checks=session.asked_checks)
             agent_d = run.diagnosis
             sessions.add_facts(session, run.extra.get("facts") or [])
+            if run.extra.get("askUser"):
+                sessions.add_asked(session, [run.extra["askUser"]["checkId"]])
             session.last_run_id = run_id
             # to_dict() 里的 answer 是规则模板；LLM 路径下真实答案只存在 run.answer，
             # 不覆盖就会导致「对比」两侧答案逐字相同
@@ -185,6 +195,7 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                 warnings=sorted(set(rule_d.warnings + agent_payload["warnings"])),
                 graph=agent_d.graph, proof={"mode": "hybrid", "derivationTree": rule_d.proof_tree},
                 trace=run.trace, evidence=agent_d.evidence, slots=run.slots,
+                askUser=run.extra.get("askUser"),
                 ruleResult=rule_d.to_dict(), agentResult=agent_payload,
                 detail={"coverage": run.coverage, "toolResults": run.tool_results,
                         "reflections": run.reflections,

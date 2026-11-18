@@ -410,3 +410,23 @@ def test_run_llm_applies_user_action_facts(store, model, monkeypatch):
     facts_steps = [t for t in run.trace if t["node"] == "facts"]
     assert facts_steps and facts_steps[0]["accepted"][0]["nodeId"] == "SOL:CLEAN-WHEEL"
     assert run.diagnosis.solutions[0]["name"] == "更换轮组总成"
+
+
+def test_run_llm_asks_when_ambiguous(store, model, monkeypatch):
+    """E11 三个根因并存：开启追问时应给出一个检查项，且状态是 needs_info。"""
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
+    run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转", allow_ask=True)
+    assert run.status == "needs_info"
+    ask = run.extra["askUser"]
+    assert ask and ask["checkId"].startswith("CHK:")
+    assert ask["reason"]["ig"] > 0
+    assert [o["value"] for o in ask["options"]] == ["positive", "negative", "skip"]
+    assert any(t["node"] == "ask_user" for t in run.trace)
+
+
+def test_run_llm_does_not_ask_by_default(store, model, monkeypatch):
+    """单轮评测必须保持「不问也答」：默认关闭追问，否则历史指标全部失真。"""
+    monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
+    run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
+    assert run.status == "ok"
+    assert run.extra.get("askUser") is None

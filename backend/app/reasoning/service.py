@@ -498,6 +498,11 @@ def _assemble(store: GraphStore, fp: FactProjection, result: InferenceResult) ->
         node = store.get(cid)
         if node is None:
             continue
+        # 根因被排除后，只为它服务的检查项也不该再推荐：否则用户第二轮回「正常」，
+        # 系统仍把同一个检查排在第一位（追问看起来没起任何作用）。
+        confirming = [cause.id for cause, _ in _nbrs(store, cid, ["CONFIRMED_BY"], "in", 8)]
+        if confirming and set(confirming) <= excluded_causes:
+            continue
         checks.append({
             "id": cid,
             "name": node.name,

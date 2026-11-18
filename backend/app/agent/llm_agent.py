@@ -43,6 +43,7 @@ from ..llm.prompts import (
 )
 from ..reasoning.graph_only import diagnose_graph_only
 from ..reasoning.service import DISCLAIMER, LOOKUP_POLICIES, Diagnosis, diagnose
+from .ask import plan_question
 from . import graph as _deterministic
 from .slots import Slots, extract_slots, sub_questions
 from .tools import ToolResult, Tools
@@ -66,6 +67,9 @@ def run_llm(
     use_reflection: bool = True,
     use_rules: bool = True,
     prior_facts: list[dict[str, Any]] | None = None,
+    check_results: list[dict[str, Any]] | None = None,
+    allow_ask: bool = False,
+    asked_checks: list[str] | None = None,
 ) -> "_deterministic.AgentRun":
     """LLM 驱动版本；`use_reflection` / `use_rules` 语义与 graph.run 一致（消融开关）。"""
     client = get_client()
@@ -122,6 +126,11 @@ def run_llm(
         {"check": f["nodeId"], "fault": f.get("faultId") or "", "result": f["result"]}
         for f in facts if f["kind"] == "check" and f.get("faultId") and f["result"] == "positive"
     ]
+    # 按钮答案（checkResults）是显式极性，直接进规则，不受自由文本极性门控影响
+    for item in check_results or []:
+        if item.get("check") and item.get("result") in {"positive", "negative"}:
+            fact_checks.append({"check": item["check"], "fault": item.get("fault") or "",
+                                "result": item["result"]})
     step("facts", accepted=facts, rejected=rejected_facts,
          actions=actions, checks=len(fact_checks))
 
@@ -250,6 +259,17 @@ def run_llm(
     audit["llmDriven"] = llm_usage["calls"] > calls_before_rank
     step("rank", **audit)
 
+    # ---------- ask_user：结论不够确定时先问一个最能分开根因的问题（P2.3）----------
+    # 默认关闭（allow_ask=False）：单轮评测必须保持「不问也答」的口径，
+    # 否则把所有歧义题都变成 needs_info，历史指标全部失真。
+    ask_payload: dict[str, Any] | None = None
+    if allow_ask:
+        ask_payload = plan_question(store, diagnosis, facts=facts, asked=asked_checks)
+        if ask_payload:
+            step("ask_user", checkId=ask_payload["checkId"], causeId=ask_payload["causeId"],
+                 ig=ask_payload["reason"]["ig"], cost=ask_payload["reason"]["cost"],
+                 gate=ask_payload["reason"]["gate"])
+
     # ---------- verify：确定性规则校验（安全/网络/不兼容），不交给 LLM ----------
     issues = _deterministic._verify(diagnosis, similar, compat)
     step("verify", issues=issues, policies=diagnosis.policies)
@@ -261,19 +281,23 @@ def run_llm(
                       similar, compat, coverage, llm_usage)
     answer = final.text
     claims_source = "llm" if any(c.get("source") == "llm" for c in final.claims) else "rule"
+    if ask_payload:
+        # 追问放在结论之后：用户先看到当前判断与依据，再决定要不要做这一步检查
+        answer = f"{answer}\n\n{ask_payload['question']}"
     step("finalize", coverage=coverage, llmAnswer=llm_usage["calls"] > calls_before,
          claims=len(final.claims), claimsSource=claims_source,
+         status="needs_info" if ask_payload else "ok",
          latencyMs=int((time.perf_counter() - started) * 1000))
 
     return _deterministic.AgentRun(
         diagnosis=diagnosis, slots=slots.to_dict(), sub_questions=subs,
         coverage=coverage, reflections=reflections,
         tool_results=[r.to_dict() for r in results], trace=trace,
-        answer=answer, status="ok",
+        answer=answer, status="needs_info" if ask_payload else "ok",
         claims=final.claims, warnings=final.warnings,
         extra={"compatibility": compat, "similarCases": similar[:5], "issues": issues,
                "unknownModel": slots.model_unknown, "llm": llm_usage,
-               "claimsSource": claims_source,
+               "claimsSource": claims_source, "askUser": ask_payload,
                # 供 API 写回会话：跨轮事实必须能累积，否则第二轮又是从零开始
                "facts": facts, "rejectedFacts": rejected_facts},
     )

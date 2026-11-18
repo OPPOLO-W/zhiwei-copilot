@@ -152,3 +152,13 @@ def test_negative_check_excludes_cause(store, model):
         check_results=[{"check": "CHECK-WHEEL-BEARING", "fault": "LEFT-WHEEL-STUCK", "result": "negative"}],
     )
     assert "轮组轴承磨损" not in _names(d.causes)
+
+
+def test_negative_check_also_removes_its_check(store, model):
+    """排除根因后，只为它服务的检查项不能继续排第一（否则追问等于没问）。"""
+    d = diagnose(store, model=model, code="E11",
+                 check_results=[{"check": "CHK:SPIN-LEFT-WHEEL",
+                                 "fault": "FAULT:LEFT-WHEEL-STUCK", "result": "negative"}])
+    assert _names(d.causes)[0] == "轮组轴承磨损"
+    assert d.checks[0]["name"] == "检查轮组轴承间隙"
+    assert "手动转动左轮" not in [c["name"] for c in d.checks]
