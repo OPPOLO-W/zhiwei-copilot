@@ -65,6 +65,7 @@ def run_llm(
     symptom: str | None = None,
     use_reflection: bool = True,
     use_rules: bool = True,
+    prior_facts: list[dict[str, Any]] | None = None,
 ) -> "_deterministic.AgentRun":
     """LLM 驱动版本；`use_reflection` / `use_rules` 语义与 graph.run 一致（消融开关）。"""
     client = get_client()
@@ -109,7 +110,11 @@ def run_llm(
     # 门控是硬要求：quote 必须是用户原话子串、实体必须在图里、检查必须能唯一确定故障。
     # 通不过的事实只是不进推理，不影响其它槽位，避免一句话毁掉整轮对话。
     facts, rejected_facts = _gate_facts(store, question or "", getattr(llm_out, "facts", []) or [])
-    actions = [f["nodeId"] for f in facts if f["kind"] == "action"]
+    # 上一轮已采信的事实跨轮累积：用户第二轮只说「还是不行」，事实不能丢
+    carried = [f for f in (prior_facts or []) if f.get("kind") == "action" and f.get("nodeId")]
+    actions = list(dict.fromkeys(
+        [f["nodeId"] for f in carried] + [f["nodeId"] for f in facts if f["kind"] == "action"]
+    ))
     # 只喂阳性检查：P2.1 的检查结果来自自由文本，极性靠模型推断，实测会把
     # 「还是充不上」读成「检查结果阴性」并因此排除整条故障（H04 首选方案变空）。
     # 阴性与「没做过」留给 P2.3 的按钮答案（显式极性）再落规则。
@@ -158,7 +163,7 @@ def run_llm(
             extra={"compatibility": [], "similarCases": [], "issues": [],
                    "unknownModel": slots.model_unknown,
                    "reason": sorted(set(diagnosis.policies) & LOOKUP_POLICIES)[0],
-                   "llm": llm_usage},
+                   "llm": llm_usage, "facts": facts, "rejectedFacts": rejected_facts},
         )
 
     similar: list[dict[str, Any]] = []
@@ -268,7 +273,9 @@ def run_llm(
         claims=final.claims, warnings=final.warnings,
         extra={"compatibility": compat, "similarCases": similar[:5], "issues": issues,
                "unknownModel": slots.model_unknown, "llm": llm_usage,
-               "claimsSource": claims_source},
+               "claimsSource": claims_source,
+               # 供 API 写回会话：跨轮事实必须能累积，否则第二轮又是从零开始
+               "facts": facts, "rejectedFacts": rejected_facts},
     )
 
 

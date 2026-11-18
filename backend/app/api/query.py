@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..agent import graph as agent_graph
+from ..agent.session import get_session_store
 from ..agent.slots import Slots, extract_slots
 from ..kg import queries as Q
 from ..kg.store import GraphStore
@@ -61,15 +62,25 @@ def _final_claims(run, diagnosis) -> list[dict[str, Any]]:
     return claims or diagnosis.claims
 
 
-def _run_agent_dispatch(store: GraphStore, req: QueryRequest):
-    """Agent 执行入口：`useLlm` 且已配置 key 时走 LLM 驱动，否则确定性实现。"""
+def _run_agent_dispatch(store: GraphStore, req: QueryRequest, prior_facts: list[dict] | None = None,
+                        inherited: dict[str, Any] | None = None):
+    """Agent 执行入口：`useLlm` 且已配置 key 时走 LLM 驱动，否则确定性实现。
+
+    `inherited` 是会话里带下来的槽位：追问句（「还是不行」）自己抽不出型号/错误码，
+    不继承就会整段降级成「请补充型号」。
+    """
+    inherited = inherited or {}
+    model = req.model or inherited.get("model")
+    code = req.code or inherited.get("code")
+    symptom = req.symptom or inherited.get("symptom")
+    case_no = req.case_no or inherited.get("case_no")
     if req.use_llm:
         from ..agent.llm_agent import run_llm
 
-        return run_llm(store, question=req.question, model=req.model, code=req.code,
-                       symptom=req.symptom, case_no=req.case_no)
-    return agent_graph.run(store, question=req.question, model=req.model, code=req.code,
-                           symptom=req.symptom, case_no=req.case_no)
+        return run_llm(store, question=req.question, model=model, code=code,
+                       symptom=symptom, case_no=case_no, prior_facts=prior_facts)
+    return agent_graph.run(store, question=req.question, model=model, code=code,
+                           symptom=symptom, case_no=case_no)
 
 
 def _divergence(rule_d, agent_d) -> dict[str, Any]:
@@ -105,8 +116,11 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
     started = time.perf_counter()
     run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     slots = _slots_from_request(store, req)
+    sessions = get_session_store()
+    session = sessions.get_or_create(req.session_id, slots)
+    sessions.merge_slots(session, slots)
     # rule 模式没有槽位就无法推理；agent/compare 交给 Agent 的 out_of_scope 分支给出引导性回答
-    if not any(slots.values()) and not req.check_results and req.mode == "rule":
+    if not any(slots.values()) and not session.slots and not req.check_results and req.mode == "rule":
         raise HTTPException(status_code=422, detail="未能从问题中识别出型号/错误码/症状，请补充结构化参数")
     events: list[dict[str, Any]] = []
 
@@ -114,10 +128,14 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
         if req.mode == "agent":
             # 传原始请求字段而不是预抽结果：Agent 会自己抽槽位，
             # 二次注入会让「型号未收录」标记被当成结构化参数覆盖掉。
-            run = _run_agent_dispatch(store, req)
+            run = _run_agent_dispatch(store, req, prior_facts=session.facts,
+                                      inherited=session.slots)
             d = run.diagnosis
+            sessions.add_facts(session, run.extra.get("facts") or [])
+            session.last_run_id = run_id
             payload = QueryResponse(
-                runId=run_id, mode="agent", status=run.status, answer=run.answer,
+                runId=run_id, sessionId=session.session_id, mode="agent",
+                status=run.status, answer=run.answer,
                 confidence=d.confidence, claims=_final_claims(run, d),
                 warnings=_merge_warnings(run.warnings, d.warnings),
                 graph=d.graph, proof={"mode": "agent", "derivationTree": d.proof_tree},
@@ -134,16 +152,24 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
                     "faults": d.faults, "causes": d.causes, "solutions": d.solutions,
                     "checks": d.checks, "policies": d.policies, "notes": d.notes,
                     "ruleTrace": d.trace,
+                    # 会话：本轮采信的事实与被门控拒绝的事实都要可见，否则「为什么没换方案」无法复盘
+                    "session": {"turn": session.turn, "facts": session.facts,
+                                "rejectedFacts": run.extra.get("rejectedFacts") or []},
                 },
             )
             events = _events_from_trace(run.trace, run_id)
 
         elif req.mode == "compare":
-            rule_d = diagnose(store, case_no=slots["case_no"], model=slots["model"],
-                              code=slots["code"], symptom=slots["symptom"],
+            rule_d = diagnose(store, case_no=slots["case_no"] or session.slots.get("case_no"),
+                              model=slots["model"] or session.slots.get("model"),
+                              code=slots["code"] or session.slots.get("code"),
+                              symptom=slots["symptom"] or session.slots.get("symptom"),
                               check_results=req.check_results)
-            run = _run_agent_dispatch(store, req)
+            run = _run_agent_dispatch(store, req, prior_facts=session.facts,
+                                      inherited=session.slots)
             agent_d = run.diagnosis
+            sessions.add_facts(session, run.extra.get("facts") or [])
+            session.last_run_id = run_id
             # to_dict() 里的 answer 是规则模板；LLM 路径下真实答案只存在 run.answer，
             # 不覆盖就会导致「对比」两侧答案逐字相同
             final_answer = run.answer or agent_d.answer
@@ -153,7 +179,7 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             agent_payload["claims"] = _final_claims(run, agent_d)
             agent_payload["warnings"] = _merge_warnings(run.warnings, agent_d.warnings)
             payload = QueryResponse(
-                runId=run_id, mode="compare", status="ok",
+                runId=run_id, sessionId=session.session_id, mode="compare", status="ok",
                 answer=final_answer, confidence=agent_d.confidence,
                 claims=agent_payload["claims"],
                 warnings=sorted(set(rule_d.warnings + agent_payload["warnings"])),
@@ -171,10 +197,13 @@ def query(req: QueryRequest, store: GraphStore = Depends(store_dep)) -> QueryRes
             events = _events_from_trace(run.trace, run_id)
 
         else:
-            d = diagnose(store, case_no=slots["case_no"], model=slots["model"], code=slots["code"],
-                         symptom=slots["symptom"], check_results=req.check_results)
+            d = diagnose(store, case_no=slots["case_no"] or session.slots.get("case_no"),
+                         model=slots["model"] or session.slots.get("model"),
+                         code=slots["code"] or session.slots.get("code"),
+                         symptom=slots["symptom"] or session.slots.get("symptom"),
+                         check_results=req.check_results)
             payload = QueryResponse(
-                runId=run_id, mode="rule", status="ok", answer=d.answer,
+                runId=run_id, sessionId=session.session_id, mode="rule", status="ok", answer=d.answer,
                 confidence=d.confidence, claims=d.claims, warnings=d.warnings,
                 graph=d.graph, proof={"mode": "rule", "derivationTree": d.proof_tree},
                 trace=[{"node": "run_rules", "latencyMs": 0, "firedRules": d.trace.get("firedRules")}],

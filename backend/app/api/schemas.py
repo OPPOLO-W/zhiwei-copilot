@@ -16,6 +16,8 @@ class QueryRequest(BaseModel):
     code: str | None = Field(default=None, description="错误码，如 E11 / 10010")
     symptom: str | None = Field(default=None, description="症状名或口语描述")
     check_results: list[dict[str, str]] = Field(default_factory=list, alias="checkResults")
+    session_id: str | None = Field(default=None, alias="sessionId",
+                                   description="多轮会话 id；首次留空，响应会返回一个")
     mode: Mode = "rule"
     use_llm: bool = Field(default=False, alias="useLlm")
 
@@ -23,6 +25,9 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def _need_signal(self) -> "QueryRequest":
+        # 多轮追问（「还是不行」）本身没有槽位，靠 session 继承，不能按无信号拒绝
+        if self.session_id and self.question:
+            return self
         if not any([self.question, self.case_no, self.code, self.symptom]):
             raise ValueError("至少提供 question / caseNo / model+code / symptom 之一")
         return self
@@ -30,6 +35,7 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     runId: str
+    sessionId: str | None = None
     mode: str
     status: str = "ok"
     answer: str = ""

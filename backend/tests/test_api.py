@@ -57,6 +57,26 @@ def test_agent_mode_without_slots_gives_guidance(client):
     assert r.json()["status"] == "out_of_scope"
 
 
+def test_session_is_created_and_returned(client, model):
+    body = client.post("/api/query",
+                       json={"question": f"{model} 报 E11，左轮不转", "mode": "agent"}).json()
+    assert body["sessionId"].startswith("s_")
+    assert body["detail"]["session"]["turn"] >= 1
+
+
+def test_follow_up_inherits_slots_from_session(client, model):
+    """第二轮只说「还是不行」：型号/错误码必须从会话继承，否则整段降级成补充型号。"""
+    first = client.post("/api/query",
+                        json={"question": f"{model} 报 E11，左轮不转", "mode": "agent"}).json()
+    sid = first["sessionId"]
+    second = client.post("/api/query", json={"question": "还是不行，怎么办", "mode": "agent",
+                                             "sessionId": sid}).json()
+    assert second["sessionId"] == sid
+    assert second["slots"]["model"] == model
+    assert second["slots"]["code"] == "E11"
+    assert second["status"] == "ok"
+
+
 def test_unknown_case_is_404(client):
     assert client.get("/api/cases/NOT-EXIST").status_code == 404
 
