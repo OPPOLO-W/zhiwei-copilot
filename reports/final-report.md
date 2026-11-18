@@ -512,7 +512,7 @@ python -m backend.app.kg.loader --reset     # → Neo4j
 # 3) 评测（五组 × 3 次）
 python -m backend.app.eval.run_eval --all --repeat 3
 # 4) 测试
-python -m pytest backend/tests -q            # 119 passed, 2 skipped（含 17 条 LLM 用例）
+python -m pytest backend/tests -q            # 143 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
 # 5) 起服务
 uvicorn backend.app.main:app --port 8000
 # 6) 前端

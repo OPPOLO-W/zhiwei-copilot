@@ -15,6 +15,13 @@ from ..kg.model import Node
 from ..kg.store import GraphStore
 
 MODEL_RE = re.compile(r"[Tt]\s?(\d{2})\s*(PRO|Pro|pro|TURBO|Turbo|turbo)?")
+# 型号兜底：上面的 MODEL_RE 只认 T 系列，X / N / 其他系列会被漏掉。
+# 漏掉的后果不是「答不出」，而是**跨型号作答**：问题里的「X5 PRO 基站漏水」
+# 抽不到型号 → symptom 抽到「漏水」→ 系统拿 T20 PRO 的结论回答 X5 PRO 的问题。
+# 这条正则只负责「认出有一个型号样的 token」，能不能解析交给 resolve_model。
+GENERIC_MODEL_RE = re.compile(
+    r"(?<![A-Za-z0-9])([A-Za-z]{1,2})\s?(\d{1,2})\s*(PRO|Pro|pro|TURBO|Turbo|turbo|OMNI|Omni|omni)?(?![A-Za-z0-9])"
+)
 CODE_RE = re.compile(r"(?<![A-Za-z0-9])(?:E\s?(\d{2,3})|(100\d{2}))(?!\d)")
 ENV_WORDS = {
     "PET": ["养猫", "养狗", "宠物", "猫毛", "狗毛"],
@@ -91,6 +98,22 @@ def extract_slots(store: GraphStore, question: str) -> Slots:
             slots.model = candidate
             slots.model_unknown = candidate
             slots.unresolved.append(f"型号 {candidate} 不在图谱范围内")
+
+    if slots.model is None and slots.model_unknown is None:
+        # T 系列以外的型号（X5 PRO / N8 等）。只有带字母前缀 + 数字才当型号，
+        # 「E11」「10010」这类错误码已经被 CODE_RE 认领，这里显式排除 E 前缀。
+        for gm in GENERIC_MODEL_RE.finditer(question):
+            prefix = gm.group(1).upper()
+            if prefix == "E":
+                continue
+            suffix = (gm.group(3) or "").upper()
+            candidate = f"{prefix}{gm.group(2)}" + (f" {suffix}" if suffix else "")
+            if Q.resolve_model(store, candidate):
+                continue  # 是真的型号，交给下游正常路径
+            slots.model = candidate
+            slots.model_unknown = candidate
+            slots.unresolved.append(f"型号 {candidate} 不在图谱范围内")
+            break
 
     c = CODE_RE.search(question.upper().replace(" ", ""))
     if c:

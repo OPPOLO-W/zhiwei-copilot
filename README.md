@@ -11,6 +11,8 @@
 - 抽取与数据账本：[`docs/extraction.md`](docs/extraction.md)
 - 实验与误差分析：[`docs/evaluation.md`](docs/evaluation.md)
 - 答辩演示脚本：[`docs/demo-script.md`](docs/demo-script.md)
+- **可靠性提升计划：[`docs/uplift-plan.md`](docs/uplift-plan.md)**（三阶段：题集与硬幻觉指标 → 受约束事实回传 → 带证据的复核；含通过标准与 git 回退点）
+- **难题集基线：[`reports/uplift-baseline.md`](reports/uplift-baseline.md)**（20 题定向抽样 × 4 系统 × 3 重复，含编造/悬空/越界/安全四项检测）
 - 图谱规模：**432 实体 / 1028 关系**（课程要求 ≥60 / ≥120）
 - 推理规则：**24 条**声明式规则（课程要求 ≥20）
 - 评测集：**50 题**（单跳 10 / 两跳 11 / 多跳 13 / 歧义 5 / 型号范围 4 / 安全 4 / 超范围 3）
@@ -348,7 +350,7 @@ FAQ 29 条故障类，对齐 21 对——手册覆盖 83%，FAQ 覆盖 52%。
 ## 6. 测试
 
 ```bash
-python -m pytest backend/tests -q      # 119 passed, 2 skipped（含 17 条 LLM 用例）
+python -m pytest backend/tests -q      # 143 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
 ```
 
 覆盖：本体规模与继承、图谱规模/证据完整性/无孤立点、规则白名单与静态校验、

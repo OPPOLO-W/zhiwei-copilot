@@ -27,7 +27,7 @@ from ..config import EVAL_DIR, ROOT
 from ..kg import queries as Q
 from ..kg.store import GraphStore
 from ..reasoning.service import diagnose
-from . import metrics
+from . import grounding, metrics
 
 RESULTS_DIR = ROOT / "var" / "eval"
 
@@ -43,6 +43,16 @@ def load_questions(path: Path | None = None) -> list[dict[str, Any]]:
     return out
 
 
+def _evidence_ids(d) -> list[str]:
+    """本次诊断真实产出的证据 id 集合（E1/E2/…）。
+
+    grounding 的悬空引用指标要拿它做白名单：claim 引用的 id 不在这里面，
+    说明是「挂了个不存在的编号」，比「没挂编号」更接近伪造。
+    """
+    edges = (getattr(d, "graph", None) or {}).get("edges") or []
+    return sorted({e.get("evidenceId") for e in edges if e.get("evidenceId")})
+
+
 def _run_rule(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
     d = diagnose(store, case_no=q.get("caseNo"), model=q.get("model"),
                  code=q.get("code"), symptom=q.get("symptom"), question=q.get("question"))
@@ -52,6 +62,8 @@ def _run_rule(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
         "solutionNames": [s["name"] for s in d.solutions],
         "triples": [[t[0], t[1], t[2]] for t in (e["triple"] for e in d.evidence if len(e["triple"]) == 3)],
         "claims": d.claims,
+        "checkNames": [c["name"] for c in d.checks],
+        "evidenceIds": _evidence_ids(d),
         "latencyMs": 0,
     }
 
@@ -79,6 +91,8 @@ def _run_agent(store: GraphStore, q: dict[str, Any], *,
         "solutionNames": [s["name"] for s in d.solutions],
         "triples": [[t[0], t[1], t[2]] for t in (e["triple"] for e in d.evidence if len(e["triple"]) == 3)],
         "claims": d.claims,
+        "checkNames": [c["name"] for c in d.checks],
+        "evidenceIds": _evidence_ids(d),
         "latencyMs": 0,
         # 上下文完整度与工具效率：D/E 组的退化往往体现在这两项而不是准确率上
         "coverage": round(len(covered) / 5, 4) if run.coverage else None,
@@ -119,12 +133,13 @@ def _run_rag(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
     hits = store.search(symptom, label="Symptom", limit=1) if symptom else []
     if not hits:
         return {"answer": "无法从图谱检索到相关三元组。", "faultCodes": [], "solutionNames": [],
-                "triples": [], "claims": [], "latencyMs": 0}
+                "triples": [], "claims": [], "checkNames": [], "evidenceIds": [], "latencyMs": 0}
     sym = hits[0]
     faults = _nbrs(store, sym.id, "INDICATES", "out", 5)
     faults.sort(key=lambda x: -float(x[1].get("confidence", 0)))
     if not faults:
-        return {"answer": "无匹配故障。", "faultCodes": [], "solutionNames": [], "triples": [], "claims": [], "latencyMs": 0}
+        return {"answer": "无匹配故障。", "faultCodes": [], "solutionNames": [], "triples": [],
+                "claims": [], "checkNames": [], "evidenceIds": [], "latencyMs": 0}
     fault = faults[0][0]
     causes = _nbrs(store, fault.id, "CAUSED_BY", "out", 5)
     causes.sort(key=lambda x: -float(x[1].get("confidence", 0)))
@@ -135,9 +150,12 @@ def _run_rag(store: GraphStore, q: dict[str, Any]) -> dict[str, Any]:
         triples.append([fault.id, "CAUSED_BY", cause.id])
         sols = [n.name for n, _ in _nbrs(store, cause.id, "RESOLVED_BY", "out", 5)]
     answer = f"检索到最相关故障：{fault.name}。建议方案：{'、'.join(sols[:2]) or '未检索到'}。"
+    # 注意：这里的 "E1" 是弱基线自己编的编号，并不指向真实 Evidence 节点。
+    # 保留原样——grounding 会把它们全部判为悬空引用，这正是指标应有的行为
+    # （弱基线的「引用」本来就是形式上的）。不为让它好看而改成空列表。
     return {"answer": answer, "faultCodes": [fault.props.get("code")], "solutionNames": sols,
             "triples": triples, "claims": [{"text": answer, "evidenceIds": ["E1"] if triples else []}],
-            "latencyMs": 0}
+            "evidenceIds": [], "latencyMs": 0}
 
 
 SYSTEMS = {
@@ -156,10 +174,13 @@ SYSTEMS = {
 ALL_SYSTEMS = ["rule", "agent", "agent_noreflect", "agent_norules", "rag"]
 
 
-def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "rule") -> dict[str, Any]:
+def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "rule",
+             dataset: str = "questions") -> dict[str, Any]:
     runner = SYSTEMS.get(system)
     if runner is None:
         raise ValueError(f"未知系统 {system}，可选 {list(SYSTEMS)}")
+    # 本体白名单只构建一次（内部按 store 缓存），用于编造实体检测
+    vocab = grounding.build_vocab(store)
     rows: list[dict[str, Any]] = []
     for q in questions:
         started = time.perf_counter()
@@ -167,7 +188,7 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             out = runner(store, q)
         except Exception as exc:  # noqa: BLE001 - 单题失败不应中断整体评测
             out = {"answer": f"[error] {exc}", "faultCodes": [], "solutionNames": [],
-                   "triples": [], "claims": [], "latencyMs": 0}
+                   "triples": [], "claims": [], "checkNames": [], "evidenceIds": [], "latencyMs": 0}
         out["latencyMs"] = int((time.perf_counter() - started) * 1000)
         f = metrics.fault_prf(out["faultCodes"], q.get("goldFaults", []))
         p = metrics.path_prf(out["triples"], q.get("goldEvidenceTriples", []))
@@ -176,7 +197,19 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
         has_fault_gold = bool(q.get("goldFaults"))
         has_solution_gold = bool(str(q.get("goldSolution") or "").strip())
         has_path_gold = bool(q.get("goldEvidenceTriples"))
+        # 硬幻觉四项：与正确性指标并列落盘，任一非零都能定位到具体题号
+        g = grounding.check_row(
+            answer=out["answer"],
+            fault_codes=out["faultCodes"],
+            solution_names=out["solutionNames"][:3],
+            claims=out["claims"],
+            available_evidence_ids=out.get("evidenceIds") or [],
+            must_not_claim=q.get("mustNotClaim"),
+            vocab=vocab,
+            forbid_solutions=bool(q.get("forbidAnySolution")),
+        )
         rows.append({
+            **g,
             "id": q.get("id"),
             "type": q.get("type"),
             "answer": out["answer"],
@@ -187,6 +220,11 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
             "pathPrecision": p["precision"] if has_path_gold else None,
             "pathRecall": p["recall"] if has_path_gold else None,
             "answerCorrect": metrics.answer_correct(out["answer"], q.get("mustInclude", [])),
+            # 首选结论判定：旧口径「答案里出现过就算对」会把「先给错方案、再列对方案」判成正确，
+            # 难题集上必须看系统**推荐了什么**而不是**提到了什么**。
+            "topFaultCorrect": metrics.top1_correct(out["faultCodes"], (q.get("goldFaults") or [""])[0]),
+            "topSolutionCorrect": metrics.top1_correct(out["solutionNames"], q.get("goldSolution")),
+            "topCheckCorrect": metrics.top1_correct(out.get("checkNames") or [], q.get("goldCheckName")),
             "solutionCorrect": (
                 any(str(q.get("goldSolution", "")) in s for s in out["solutionNames"][:3])
                 if has_solution_gold else None
@@ -201,7 +239,8 @@ def run_eval(store: GraphStore, questions: list[dict[str, Any]], system: str = "
 
     summary = metrics.summarize(rows)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    result = {"id": f"{system}_{stamp}", "system": system, "at": datetime.now().isoformat(timespec="seconds"),
+    result = {"id": f"{system}_{stamp}", "system": system, "dataset": dataset,
+              "at": datetime.now().isoformat(timespec="seconds"),
               "summary": summary, "rows": rows}
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / f"{system}_{stamp}.json").write_text(
@@ -222,13 +261,18 @@ def main() -> None:
     from ..kg import get_store
 
     store = get_store()
-    questions = load_questions(args.questions)[: args.limit]
+    qpath = args.questions or (EVAL_DIR / "questions.jsonl")
+    questions = load_questions(qpath)[: args.limit]
+    dataset = qpath.stem
     systems = ALL_SYSTEMS if args.all else [args.system]
 
     agg: dict[str, dict[str, Any]] = {}
     for system in systems:
-        runs = [run_eval(store, questions, system=system) for _ in range(max(1, args.repeat))]
+        runs = [run_eval(store, questions, system=system, dataset=dataset)
+                for _ in range(max(1, args.repeat))]
         summary = metrics.aggregate([r["summary"] for r in runs])
+        # 可重复性必须跨 run 比对 rows，不能靠 aggregate 的均值——均值相同不代表逐题相同
+        summary["repeatability"] = metrics.repeatability([r["rows"] for r in runs])
         agg[system] = summary
         print(f"\n== {system}（{len(runs)} 次）")
         print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -237,7 +281,7 @@ def main() -> None:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = RESULTS_DIR / f"aggregate_{stamp}.json"
         path.write_text(json.dumps(
-            {"at": datetime.now().isoformat(timespec="seconds"),
+            {"at": datetime.now().isoformat(timespec="seconds"), "dataset": dataset,
              "repeat": max(1, args.repeat), "nQuestions": len(questions), "systems": agg},
             ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\n汇总（均值±标准差）已写入 {path}")
