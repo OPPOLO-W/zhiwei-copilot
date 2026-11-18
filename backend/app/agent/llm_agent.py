@@ -177,7 +177,10 @@ def run_llm(
                 missing=[q for q, s in coverage.items() if s != "covered"],
                 decision="continue" if coverage["q3"] == "missing" and slots.model else "stop",
             )
-        coverage = {k: v for k, v in (refl.coverage or {}).items()} or coverage
+        # LLM 返回的 coverage 可能只给部分 qid（schema 不强制全量）。直接整体替换会让
+        # 缺失键被算作未覆盖，人为压低指标；而 LLM 也不该有权把确定性已覆盖的子问题
+        # 凭空判成 covered。规则：以确定性计算为基线，LLM 只能下调（发现缺口），不能上调。
+        coverage = _merge_coverage(coverage, refl.coverage)
         reflections.append({
             "round": rounds + 1, "coverage": dict(coverage),
             "conflicts": list(refl.conflicts),
@@ -231,6 +234,27 @@ def run_llm(
 # ---------------------------------------------------------------------------
 # 各 LLM 节点（每个都「失败返回 None / 回退」，由调用方降级）
 # ---------------------------------------------------------------------------
+
+_COVERAGE_RANK = {"covered": 2, "partial": 1, "missing": 0}
+_COVERAGE_KEYS = ("q1", "q2", "q3", "q4", "q5")
+
+
+def _merge_coverage(base: dict[str, str], reported: dict[str, str] | None) -> dict[str, str]:
+    """把 LLM 报告的覆盖度合并到确定性基线：只允许下调，不允许上调。
+
+    两个理由：
+    * 缺键安全：LLM 只回 `{"q3": "missing"}` 时，其余四项仍按基线，不会被当成未覆盖；
+    * 权责一致：覆盖度由工具产出的证据决定，LLM 的职责是「读证据发现缺口」，
+      不具备「宣称某子问题已覆盖」的权限。
+    """
+    rep = reported or {}
+    merged: dict[str, str] = {}
+    for qid in _COVERAGE_KEYS:
+        b = base.get(qid, "missing")
+        r = rep.get(qid)
+        merged[qid] = r if (r in _COVERAGE_RANK and _COVERAGE_RANK[r] < _COVERAGE_RANK[b]) else b
+    return merged
+
 
 def _decompose(client: LLMClient, store: GraphStore, question: str) -> SlotExtraction | None:
     if not question.strip():

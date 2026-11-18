@@ -53,7 +53,7 @@ class ReflectionOutput(BaseModel):
 
     coverage: dict[str, str] = Field(
         default_factory=dict,
-        description="q1~q5 各自状态：covered / partial / missing",
+        description="必须给出 q1~q5 全部五项的状态：covered / partial / missing；缺项按 missing 处理",
     )
     conflicts: list[str] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list, description="缺失的证据类型")

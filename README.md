@@ -348,7 +348,7 @@ FAQ 29 条故障类，对齐 21 对——手册覆盖 83%，FAQ 覆盖 52%。
 ## 6. 测试
 
 ```bash
-python -m pytest backend/tests -q      # 115 passed, 2 skipped（含 13 条 LLM mock 用例）
+python -m pytest backend/tests -q      # 119 passed, 2 skipped（含 17 条 LLM 用例）
 ```
 
 覆盖：本体规模与继承、图谱规模/证据完整性/无孤立点、规则白名单与静态校验、

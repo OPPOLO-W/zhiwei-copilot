@@ -160,3 +160,40 @@ def test_run_llm_safety_policy_survives_llm(store, monkeypatch):
     monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
     run = llm_agent.run_llm(store, question="电池鼓包了还能继续用吗")
     assert "safety_stop" in run.diagnosis.policies
+
+
+# ---------------------------------------------------------------------------
+# 覆盖度合并：LLM 只能下调，不能上调（曾导致 LLM 组 coverage 虚低 13pp）
+# ---------------------------------------------------------------------------
+def test_merge_coverage_missing_keys_fall_back_to_base():
+    """LLM 只回部分 qid 时，其余按基线，不得被当成未覆盖。"""
+    base = {"q1": "covered", "q2": "covered", "q3": "covered",
+            "q4": "covered", "q5": "covered"}
+    merged = llm_agent._merge_coverage(base, {"q3": "missing"})
+    assert merged["q3"] == "missing"
+    for qid in ("q1", "q2", "q4", "q5"):
+        assert merged[qid] == "covered", f"{qid} 缺键时应回落基线"
+
+
+def test_merge_coverage_cannot_upgrade():
+    """LLM 无权把确定性已覆盖的子问题宣称成 covered。"""
+    base = {"q1": "covered", "q2": "partial", "q3": "missing",
+            "q4": "covered", "q5": "covered"}
+    merged = llm_agent._merge_coverage(base, {"q3": "covered", "q2": "covered"})
+    assert merged["q3"] == "missing", "不得上调 missing → covered"
+    assert merged["q2"] == "partial", "不得上调 partial → covered"
+
+
+def test_merge_coverage_empty_report_keeps_base():
+    base = {"q1": "covered", "q2": "partial", "q3": "missing",
+            "q4": "covered", "q5": "covered"}
+    assert llm_agent._merge_coverage(base, None) == base
+    assert llm_agent._merge_coverage(base, {}) == base
+
+
+def test_merge_coverage_downgrade_is_accepted():
+    """LLM 读证据发现缺口时，下调必须被采纳。"""
+    base = {q: "covered" for q in ("q1", "q2", "q3", "q4", "q5")}
+    merged = llm_agent._merge_coverage(base, {"q3": "partial", "q4": "missing"})
+    assert merged["q3"] == "partial"
+    assert merged["q4"] == "missing"
