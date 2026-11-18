@@ -356,6 +356,9 @@ def main() -> None:
 
     store = get_store()
     qpath = args.questions or (EVAL_DIR / "questions.jsonl")
+    if not qpath.exists():
+        # 静默跑出 n=0 的空结果比报错更费时间：路径写错必须立刻失败
+        raise SystemExit(f"题库不存在: {qpath}（当前目录 {Path.cwd()}）")
     questions = load_questions(qpath)[: args.limit]
     dataset = qpath.stem
     systems = ALL_SYSTEMS if args.all else [args.system]
