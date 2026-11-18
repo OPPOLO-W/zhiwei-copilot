@@ -477,13 +477,15 @@ def test_run_llm_stops_reflecting_when_budget_exhausted(store, model, monkeypatc
 
 
 def test_run_llm_counts_every_llm_phase(store, model, monkeypatch):
-    """成本账要覆盖全部阶段：decompose/plan/reflect/finalize 少记一个，
+    """成本账要覆盖全部阶段：decompose/reflect/finalize 少记一个，
     报告里的「每题几次调用、多少 token」就会系统性偏低。"""
     monkeypatch.setattr(llm_agent, "get_client", lambda: _FakeClient(_happy_handler))
     run = llm_agent.run_llm(store, question=f"{model} 报 E11，左轮不转")
     phases = [s for s in run.trace if s.get("node") in {"act", "plan", "rank", "finalize"}]
     assert phases
-    # decompose + plan + 至少一轮 reflect + finalize（P5.1 起排序并入 finalize，不再单独一次）
-    assert run.extra["llm"]["calls"] >= 4, run.extra["llm"]
+    # decompose + finalize 是必付的；P5.1 排序并入 finalize，P5.2 计划改由规则生成
+    assert run.extra["llm"]["calls"] >= 2, run.extra["llm"]
+    plan = [s for s in run.trace if s.get("node") == "plan"]
+    assert plan and plan[0].get("llmDriven") is False
     rank = [s for s in run.trace if s.get("node") == "rank"]
     assert rank and rank[0].get("merged") is True

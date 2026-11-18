@@ -182,13 +182,15 @@ def run_llm(
     similar: list[dict[str, Any]] = []
     compat: list[dict[str, Any]] = []
 
-    # ---------- plan/act：LLM 选补充工具（失败则退回确定性计划）----------
-    plan = _plan(client, store, question or "", slots, diagnosis, similar, compat,
-                 settings.agent_max_steps, llm_usage)
+    # ---------- plan/act：默认按规则生成计划，KG_LLM_PLAN=1 时仍交给 LLM ----------
+    plan = None
+    if os.environ.get("KG_LLM_PLAN") == "1":
+        plan = _plan(client, store, question or "", slots, diagnosis, similar, compat,
+                     settings.agent_max_steps, llm_usage)
     # 先记下「LLM 是否真的给了计划」再兜底：否则兜底后 plan 必非 None，标记恒为 True
     llm_plan = plan is not None
     if plan is None:
-        plan = _fallback_plan(slots)
+        plan = _auto_plan(store, slots, diagnosis)
     step("plan", actions=[p["tool"] for p in plan], llmDriven=llm_plan)
 
     attempted: set[tuple[str, str]] = {(backbone.tool, str(backbone.args))}
@@ -211,7 +213,10 @@ def run_llm(
     rounds = 0
     # P4.1：确定性路径已经全覆盖时，再追问一次「还缺什么」只会拿到空清单，
     # 却要付一次完整的 LLM 往返（50 题里的单跳/两跳题基本都落在这里）。
-    if use_reflection and all(v == "covered" for v in coverage.values()):
+    # P4.2 预算护栏放在覆盖度判断之前：已经花掉八成预算就不该再付任何一次反思。
+    if use_reflection and llm_usage["tokens"] >= settings.agent_token_budget * 0.8:
+        step("reflect", skipped="budget")
+    elif use_reflection and all(v == "covered" for v in coverage.values()):
         step("reflect", skipped="coverage_complete")
     while (use_reflection and rounds < settings.agent_max_reflections
            and steps_used < settings.agent_max_steps
@@ -785,6 +790,30 @@ def _fallback_plan(slots: Slots) -> list[dict[str, Any]]:
     if slots.model and not slots.model_unknown:
         plan.append({"tool": "search_similar_cases",
                      "args": {"model": slots.model, "symptom": slots.symptom or "", "days": 365}})
+    return plan
+
+
+def _auto_plan(store: GraphStore, slots: Slots, d: Diagnosis) -> list[dict[str, Any]]:
+    """P5.2：按规则生成探索计划，替掉固定花 1.3s 的 plan 调用。
+
+    实测 plan 的选择几乎恒定（相似案例 + 文档正文 + 展开子图），
+    而「要不要取证」本来由规则结论与图谱边决定，不需要一次 LLM 往返。
+    """
+    plan = _fallback_plan(slots)
+    doc_id = ""
+    for sol in d.solutions[:2]:
+        ids = _doc_ids(store, sol["id"])
+        if ids:
+            doc_id = ids[0]
+            break
+    if doc_id:
+        plan.append({"tool": "get_document_span", "args": {"doc_id": doc_id}})
+    elif slots.symptom:
+        plan.append({"tool": "search_documents", "args": {"query": slots.symptom, "k": 3}})
+    if len(d.causes) >= 2 and d.faults:
+        # 多个候选根因时才有必要看邻接：单根因的子图对排错没有增益
+        plan.append({"tool": "expand_subgraph",
+                     "args": {"node_ids": [d.faults[0]["id"]], "depth": 2}})
     return plan
 
 
