@@ -99,7 +99,7 @@ def run_llm(
 
     # ---------- intake / decompose：确定性抽取 + LLM 解耦取并 ----------
     base = extract_slots(store, question or "")
-    llm_out = _decompose(client, store, question or "")
+    llm_out = _decompose(client, store, question or "", llm_usage)
     slots = _merge_slots(store, base, llm_out)
     slots.case_no = case_no or slots.case_no
     if model:
@@ -353,12 +353,17 @@ def _merge_coverage(base: dict[str, str], reported: dict[str, str] | None) -> di
     return merged
 
 
-def _decompose(client: LLMClient, store: GraphStore, question: str) -> SlotExtraction | None:
+def _decompose(client: LLMClient, store: GraphStore, question: str,
+               usage: dict[str, Any] | None = None) -> SlotExtraction | None:
     if not question.strip():
         return None
     try:
         data = client.chat_json(decompose_prompt(store, question), max_tokens=1100)
-        return SlotExtraction.model_validate(data)
+        out = SlotExtraction.model_validate(data)
+        # P4：decompose 是每题的第一次调用，漏记会让整题成本系统性偏低
+        if usage is not None:
+            _bump(usage, client)
+        return out
     except (LLMError, ValueError, TypeError) as exc:
         log.warning("LLM 槽位抽取失败，回退确定性抽取: %s", exc)
         return None
