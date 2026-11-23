@@ -74,6 +74,8 @@ export default function GraphCanvas({ graph, highlightEvidenceId, onNodeSelect, 
       container: boxRef.current,
       elements: [],
       wheelSensitivity: 0.18,
+      // 高分屏适配：Canvas 默认按 1x 光栅化再被浏览器拉伸，DPR>1 时文字发虚
+      pixelRatio: window.devicePixelRatio || 1,
       style: [
         {
           // 浅色图纸上的节点：纸色填充 + 本体色描边，避免深色底上的「发光胶囊」观感，
