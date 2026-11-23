@@ -15,7 +15,7 @@ class QueryRequest(BaseModel):
     model: str | None = Field(default=None, description="型号，如 T20 PRO")
     code: str | None = Field(default=None, description="错误码，如 E11 / 10010")
     symptom: str | None = Field(default=None, description="症状名或口语描述")
-    check_results: list[dict[str, str]] = Field(default_factory=list, alias="checkResults")
+    check_results: list[dict[str, str]] | None = Field(default=None, alias="checkResults")
     session_id: str | None = Field(default=None, alias="sessionId",
                                    description="多轮会话 id；首次留空，响应会返回一个")
     mode: Mode = "rule"

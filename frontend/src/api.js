@@ -52,7 +52,8 @@ export const ask = ({ question, mode, model, code, symptom, caseNo, useLlm, sess
       // 会话续跑：sessionId 让后端继承槽位与已采信事实
       sessionId: sessionId || null,
       // 追问答案：checkId + 用户选择，后端据此改写事实并重算
-      checkResults: checkResults || null,
+      // 无追问答案时发空列表而非 null：后端 schema 按 list 声明，null 会被 422 拦下
+      checkResults: checkResults || [],
       // 后端 opt-in：仅 true 时走 LLM 驱动，默认仍为确定性路径
       useLlm: !!useLlm,
     }),
