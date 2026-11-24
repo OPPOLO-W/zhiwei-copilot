@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     agent_max_steps: int = 6
     agent_max_reflections: int = 2
     agent_token_budget: int = 24000
+    # 单个工具调用的墙钟上限（秒）。<=0 表示不设限，用于对照实验。
+    agent_tool_timeout_s: float = 6.0
     rule_max_iterations: int = 1000
     rule_max_depth: int = 8
 

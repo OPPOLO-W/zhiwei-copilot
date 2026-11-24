@@ -174,7 +174,7 @@ backend/app/
   reasoning/graph_only.py   # 消融 E 用：纯图检索链（不经规则推理）
   agent/                    # Agent 层（RefKG-lite）
     slots.py                #   Query Decoupling：槽位抽取 + 子问题
-    tools.py                #   9 个窄接口工具（8 个诊断用 + 1 个消融对照；LLM 只能选工具，不能写 Cypher）
+    tools.py                #   10 个窄接口工具（9 个诊断用 + 1 个消融对照；LLM 只能选工具，不能写 Cypher）
     graph.py                #   intake→decompose→plan→act→retry→verify→finalize
   api/                      # FastAPI 路由（query / graph / eval）
   ingest/                   # 摄取层：PDF/FAQ → 带页码与表格行锚点的语料块
@@ -367,7 +367,7 @@ FAQ 29 条故障类，对齐 21 对——手册覆盖 83%，FAQ 覆盖 52%。
 ## 6. 测试
 
 ```bash
-python -m pytest backend/tests          # 200 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
+python -m pytest backend/tests          # 204 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
 ```
 
 覆盖：本体规模与继承、图谱规模/证据完整性/无孤立点、规则白名单与静态校验、

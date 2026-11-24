@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from backend.app.agent import graph as agent_graph
@@ -212,3 +214,54 @@ def test_official_faq_cases_are_verbatim(store):
             for edge, _ in edges:
                 assert edge.props.get("evidenceMode") == "verbatim"
                 assert edge.props.get("verification") == "verified"
+
+
+# ---- 工具层：超时必须是结构化失败，而不是卡住整条链路 ----
+
+
+def test_tool_timeout_returns_structured_error(store):
+    from backend.app.agent.tools import Tools
+
+    tools = Tools(store, tool_timeout_s=0.05)
+
+    def _slow(**_kwargs):
+        time.sleep(0.4)
+        return [{"ok": True}]
+
+    tools.registry["slow_tool"] = _slow
+    res = tools.call("slow_tool")
+
+    assert res.ok is False
+    assert res.error == "tool_timeout:slow_tool"
+    assert res.latencyMs >= 50
+    # 超时不能把异常或半成品数据交给模型
+    assert res.data is None
+
+
+def test_tool_timeout_disabled_runs_inline(store):
+    from backend.app.agent.tools import Tools
+
+    tools = Tools(store, tool_timeout_s=0)
+    res = tools.call("resolve_entity", text="E11", label="ErrorCode")
+
+    assert res.ok is True
+    assert isinstance(res.data, list)
+
+
+def test_normal_tool_still_succeeds_under_default_timeout(store):
+    from backend.app.agent.tools import Tools
+
+    tools = Tools(store, tool_timeout_s=5.0)
+    res = tools.call("resolve_entity", text="E11", label="ErrorCode")
+
+    assert res.ok is True
+    assert res.error is None
+    assert res.latencyMs < 5000
+
+
+def test_unknown_tool_is_structured(store):
+    from backend.app.agent.tools import Tools
+
+    res = Tools(store).call("no_such_tool")
+    assert res.ok is False
+    assert res.error == "tool_not_found:no_such_tool"

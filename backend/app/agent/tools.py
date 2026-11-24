@@ -4,17 +4,20 @@
   * 窄接口：LLM 不写 Cypher，只选择工具与参数；
   * 参数与返回值可 JSON 序列化，全部带 evidence / 计数，方便裁剪上下文；
   * 失败返回结构化错误，不把裸异常抛给模型。
+  * 单次调用有墙钟上限：超时也返回结构化错误，让上层降级而不是卡死。
 """
 
 from __future__ import annotations
 
 import json
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from ..config import DATA_DIR
+from ..config import DATA_DIR, get_settings
 from ..kg import queries as Q
 from ..kg.store import GraphStore
 from ..kg.text_index import BM25
@@ -86,9 +89,14 @@ class ToolResult:
 
 
 class Tools:
-    def __init__(self, store: GraphStore, use_rules: bool = True) -> None:
+    def __init__(
+        self, store: GraphStore, use_rules: bool = True, tool_timeout_s: float | None = None
+    ) -> None:
         self.store = store
         self.use_rules = use_rules
+        self.tool_timeout_s = (
+            get_settings().agent_tool_timeout_s if tool_timeout_s is None else tool_timeout_s
+        )
         self.registry: dict[str, Callable[..., Any]] = {
             "resolve_entity": self.resolve_entity,
             "get_case_context": self.get_case_context,
@@ -217,10 +225,48 @@ class Tools:
 
     # ---- 统一执行入口 ----
     def call(self, name: str, **kwargs: Any) -> ToolResult:
+        """执行工具。超时、异常、未知工具都变成结构化结果，不向上抛。
+
+        超时用守护线程实现而不是 ThreadPoolExecutor：被放弃的调用最多残留一个
+        守护线程，不会拖住解释器退出，也不需要为每次调用建/拆线程池。
+        """
         started = time.perf_counter()
         fn = self.registry.get(name)
         if fn is None:
             return ToolResult(name, kwargs, False, 0, "未知工具", error=f"tool_not_found:{name}")
+
+        timeout = self.tool_timeout_s
+        if timeout <= 0:
+            return self._invoke(name, fn, kwargs, started)
+
+        box: dict[str, Any] = {}
+
+        def _target() -> None:
+            try:
+                box["data"] = fn(**kwargs)
+            except BaseException as exc:  # noqa: BLE001 - 交给下方统一转换
+                box["error"] = exc
+
+        worker = threading.Thread(target=_target, name=f"tool:{name}", daemon=True)
+        worker.start()
+        worker.join(timeout)
+        if worker.is_alive():
+            latency = int((time.perf_counter() - started) * 1000)
+            return ToolResult(
+                name, kwargs, False, latency, f"工具超时（>{timeout:g}s）",
+                error=f"tool_timeout:{name}",
+            )
+        if "error" in box:
+            exc = box["error"]
+            latency = int((time.perf_counter() - started) * 1000)
+            return ToolResult(name, kwargs, False, latency, "工具执行失败", error=str(exc))
+        data = box.get("data")
+        latency = int((time.perf_counter() - started) * 1000)
+        return ToolResult(name, kwargs, True, latency, self._summarize(name, data), data)
+
+    def _invoke(
+        self, name: str, fn: Callable[..., Any], kwargs: dict[str, Any], started: float
+    ) -> ToolResult:
         try:
             data = fn(**kwargs)
             latency = int((time.perf_counter() - started) * 1000)
