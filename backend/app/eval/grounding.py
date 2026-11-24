@@ -8,7 +8,7 @@
 | 性质 | 自称有据 | 真有据 |
 | 能否被绕过 | 能——随便挂个 id 就是 0 幻觉 | 不能——id 必须命中本次证据集合 |
 
-四项指标（对应 docs/uplift-plan.md §2.3）：
+四项指标（定义与实测见 `reports/uplift-baseline.md`）：
 
 1. `fabricated_entities` —— 输出的故障码/方案名是否存在于图谱本体；
 2. `dangling_citations` —— claim 引用的 evidenceId 是否指向本次真实返回的证据；

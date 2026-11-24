@@ -27,12 +27,12 @@ Review 时的判断：作为知识图谱/规则项目是合格的，作为 Agent
 
 | 阶段 | 要解决的问题 | 做法 | 提交 | 关键证据 |
 | --- | --- | --- | --- | --- |
-| **P0** 让贡献可见 | 缺口 1–3 | LLM 答案 claims/warnings 回填并打到前端；`decision/expressed` 双评分；真 RAG 基线（BM25 + 一次 LLM） | `39abbe1` `1b10cd0` `55da8a0` `2d3b79c` | agent_llm 的 dangling/overclaim 从「空转」变成可判罚；真 RAG 在难题集 fabricate 39、overclaim 3 |
-| **P1** 候选重排 | 规则候选里常有对的，但排不在第一 | 规则定候选，LLM 只在候选内排序（`RankOutput`），验证器只接受候选集内 id，安全方案锁首位 | `832c3dc` `b21ddcc` | 难题集 topSolution 0.400 → 0.533（3 次重复一致），关重排消融 0.400；H07/H08 逐题翻转 |
-| **P2** 听懂「我已经…」 | 用户说「清理过了/换过件」，系统仍推荐同一动作 | 图谱动作效应属性（`excludesCauses`/`exhaustsSelf`）+ R25/R26/R27 三处传导（故障→根因→方案）；事实抽取并入 decompose + 七道门；会话状态；按根因信息增益追问一个检查 | `bf3446d` `682a547` `385353e` `1039d71` `95827e0` `d7dde81` | 8 道 precondition 首选方案 0/8 → 7/8；H14/H15 追问后首选检查收窄到 gold；50 题答案 0.98 → 1.00 |
-| **P3** 证据可指认 | 「带引用」引用不到东西 | 摘要带 nodeId/docId/证据原文；`get_document_span` 回正文；新增 `search_documents`；运行时校验 claim 引用（全悬空整条丢弃） | `bee1ee0` `9868168` `e459211` | 难题集 topSolution 0.533 → 0.867；文档工具 20/20 题命中；expressed 与 decision 首次对齐 |
-| **P4** 成本工程 | 4–6 次往返、1.2 万 token | 分步毫秒计时；全覆盖不反思、无进展即停；80% 预算护栏；成本落盘；修正 decompose 漏记计数 | `e32830f` `361949d` `90a195b` `5dbb96a` | 调用 5.6 → 4.54，token 修正为 12.3k，50 题 P50 −10.2% |
-| **P5** 延迟工程 | 9 秒/题 | 探索计划改由规则生成（相似案例 + 方案手册原文/症状检索 + 根因邻接）；**合并排序的实验因掉 3 题首选方案已回退** | `a814da3` `7b26c95` `837d806` `3810bb4` | 难题集 P50 9062 → 6384（−29.6%），50 题 8967 → 5102（−43%），topSolution 不变 |
+| **P0** 让贡献可见 | 缺口 1–3 | LLM 答案 claims/warnings 回填并打到前端；`decision/expressed` 双评分；真 RAG 基线（BM25 + 一次 LLM） | `53ad936` `a4eacd7` `0d0cdca` `56f0175` | agent_llm 的 dangling/overclaim 从「空转」变成可判罚；真 RAG 在难题集 fabricate 39、overclaim 3 |
+| **P1** 候选重排 | 规则候选里常有对的，但排不在第一 | 规则定候选，LLM 只在候选内排序（`RankOutput`），验证器只接受候选集内 id，安全方案锁首位 | `7f4555e` `8700693` | 难题集 topSolution 0.400 → 0.533（3 次重复一致），关重排消融 0.400；H07/H08 逐题翻转 |
+| **P2** 听懂「我已经…」 | 用户说「清理过了/换过件」，系统仍推荐同一动作 | 图谱动作效应属性（`excludesCauses`/`exhaustsSelf`）+ R25/R26/R27 三处传导（故障→根因→方案）；事实抽取并入 decompose + 七道门；会话状态；按根因信息增益追问一个检查 | `5f1f19d` `ae1933f` `3a9658f` `da34979` `c6ee5e0` `f6d6bc7` | 8 道 precondition 首选方案 0/8 → 7/8；H14/H15 追问后首选检查收窄到 gold；50 题答案 0.98 → 1.00 |
+| **P3** 证据可指认 | 「带引用」引用不到东西 | 摘要带 nodeId/docId/证据原文；`get_document_span` 回正文；新增 `search_documents`；运行时校验 claim 引用（全悬空整条丢弃） | `326c40f` `f7ab7ba` | 难题集 topSolution 0.533 → 0.867；文档工具 20/20 题命中；expressed 与 decision 首次对齐 |
+| **P4** 成本工程 | 4–6 次往返、1.2 万 token | 分步毫秒计时；全覆盖不反思、无进展即停；80% 预算护栏；成本落盘；修正 decompose 漏记计数 | `88d68e9` `6bf4f06` `cdaa81b` | 调用 5.6 → 4.54，token 修正为 12.3k，50 题 P50 −10.2% |
+| **P5** 延迟工程 | 9 秒/题 | 探索计划改由规则生成（相似案例 + 方案手册原文/症状检索 + 根因邻接）；**合并排序的实验因掉 3 题首选方案已回退** | `8b25830` `fc0023e` `85d7c9a` `3097f5c` | 难题集 P50 9062 → 6384（−29.6%），50 题 8967 → 5102（−43%），topSolution 不变 |
 
 ## 3. 数字总表
 
@@ -122,8 +122,7 @@ Review 时的判断：作为知识图谱/规则项目是合格的，作为 Agent
 ## 6. 索引
 
 - 阶段报告：`reports/p0-attribution.md`、`p1-rerank.md`、`p2-multiturn.md`、`p3-exploration.md`、`p4-cost.md`、`p5-latency.md`
-- 可行性分析：`docs/p3-feasibility.md`、`docs/p4-feasibility.md`
-- 路线与状态：`docs/uplift-plan.md`（§8 状态、§9–§11 各阶段）
+- 可行性分析与路线计划：本地维护，未随仓库发布（结论已并入本文 §3–§4 与各阶段报告）
 - 总报告：`reports/final-report.md`（§8.5 已标注「逐位相同」为历史口径）
 - 结果文件：`var/eval/agent_llm_20261118_*.json`（每次运行的逐题行 + 汇总）
 - 测试：`202 passed, 2 skipped`；回退点 `pre-p0`；分支 `p0/llm-attribution`

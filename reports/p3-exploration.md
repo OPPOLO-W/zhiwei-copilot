@@ -13,7 +13,7 @@
 `get_document_span` 也只回 `docId/title/url/authority` 四项元数据——没有正文，
 「引用手册原文」这件事在架构上就不成立。
 
-三条硬事实（`docs/p3-feasibility.md` 里逐条列过）：
+三条硬事实（当时逐条列过）：
 
 | 事实 | 后果 |
 | --- | --- |

@@ -110,7 +110,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "answerAccuracy": mean("answerCorrect"),
         # 首选结论三项：与 answerAccuracy 并列，回答的是不同问题——
         # 「提到了正确答案吗」 vs 「第一个推荐的就是正确答案吗」。
-        # 前者用于与历史 50 题口径对齐，后者用于难题集判定（见 docs/uplift-plan.md）。
+        # 前者用于与历史 50 题口径对齐，后者用于难题集判定（见 reports/uplift-summary.md）。
         "topFaultAccuracy": mean("topFaultCorrect"),
         "topSolutionAccuracy": mean("topSolutionCorrect"),
         "topCheckAccuracy": mean("topCheckCorrect"),

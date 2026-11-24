@@ -1,6 +1,6 @@
 # 阶段 A 基线报告：难题集与硬幻觉指标
 
-> 配套计划：`docs/uplift-plan.md` ｜ 检查点：`v5-baseline-50q` → 本报告 → `v6-hard-eval`
+> 检查点：`v5-baseline-50q` → 本报告 → `v6-hard-eval`
 > 题集：`data/eval/questions_hard.jsonl`（20 题）｜ 重复次数：3 ｜ 后端：`KG_BACKEND=memory`
 > 日期：2026-11-18
 

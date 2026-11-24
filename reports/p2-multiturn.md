@@ -1,6 +1,6 @@
 # P2：让用户说过的排查事实进入推理（多轮会话 + 追问）
 
-> 分支 `p0/llm-attribution`，提交 `bf3446d` → `682a547`/`385353e` → `1039d71` → `95827e0` → `d7dde81`。
+> 分支 `p0/llm-attribution`，提交 `5f1f19d` → `ae1933f`/`3a9658f` → `da34979` → `c6ee5e0` → `f6d6bc7`。
 > 回退点 `pre-p0`（P0 之前）、`v7-llm-symptom`（阶段 B 结束）。
 
 ## 1. 为什么 P2 才是分水岭
@@ -19,7 +19,7 @@ P0/P1 之后 LLM 已经能做三件事：把口语归一化成槽位、在候选
 
 ## 2. 四处改动
 
-### P2.0 图谱动作效应表 + R25/R26/R27（`bf3446d`）
+### P2.0 图谱动作效应表 + R25/R26/R27（`5f1f19d`）
 
 - 领域知识进图谱而不是进 prompt：`data/seed/t20pro/02_knowledge.yaml` 给 7 个方案加
   `excludes: [被否定的根因]` / `exhausts: true`，`build_seed.py` 落到节点属性
@@ -33,7 +33,7 @@ P0/P1 之后 LLM 已经能做三件事：把口语归一化成槽位、在候选
   2. 故障级：某故障的全部根因都被排除 → 整条故障退出（H06 的"清水箱缺水"随之消失）；
   3. 方案级：方案的全部 support 根因都被排除才剔除（多根因共享的方案不误删）。
 
-### P2.1 用户自述事实并进 decompose（`682a547` / `385353e`）
+### P2.1 用户自述事实并进 decompose（`ae1933f` / `3a9658f`）
 
 `SlotExtraction` 增加 `facts: [FactDraft{kind, ref, result, quote}]`，与槽位同一次 LLM 调用返回，省一次往返。
 七道门（`_gate_facts`），任何一道不过就丢弃并记原因：
@@ -51,13 +51,13 @@ P0/P1 之后 LLM 已经能做三件事：把口语归一化成槽位、在候选
 会把 H04 的"还是充不上"读成"检查结果是坏的"，反而排除整条故障；而追问按钮点出来的答案可信，
 单独走 `check_results` 通道。
 
-### P2.2 会话（`1039d71`）
+### P2.2 会话（`da34979`）
 
 `SessionStore`（TTL 30 min、容量 500、带锁）保存 `slots / facts / asked_checks / check_results / turn`。
 `QueryRequest.sessionId` 首次留空、响应回填；后续轮次继承槽位（只补空位、不覆盖），
 `prior_facts` 回灌给 LLM。**不缓存推理结论**——结论必须每轮按当前事实重推。
 
-### P2.3 追问决策（`95827e0`）
+### P2.3 追问决策（`c6ee5e0`）
 
 - 算的是**根因**的信息增益，不是故障的：`CAUSE -CONFIRMED_BY-> CHECK` 的入边反查检查项。
   用 `DETECTS` 算会得到 0（H01 三个检查都指向同一个故障），问了等于没问。
@@ -67,7 +67,7 @@ P0/P1 之后 LLM 已经能做三件事：把口语归一化成槽位、在候选
   本轮已抽到 action/check 事实也不问（用户刚说完做过什么，别再问同一件事）。
 - 一个会话只问一次：答完就该给结论，否则会变成二十问。
 
-### P2.4 前端与 API 贯穿（`d7dde81`）
+### P2.4 前端与 API 贯穿（`f6d6bc7`）
 
 `AskCard` 三个按钮（有异常 / 正常 / 不确定）→ `ask({sessionId, checkResults:[{check, fault, result}]})`；
 后端把按钮答案并入 `session.check_results`，下一轮继续生效。同时修了两处接线：
