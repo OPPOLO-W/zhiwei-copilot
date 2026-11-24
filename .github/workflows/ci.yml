@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend · Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # 全部用例跑在 KG_BACKEND=memory 上（conftest 中设定），CI 不需要 Neo4j
+      - name: Tests
+        run: python -m pytest backend/tests
+
+      - name: Graph quality gates (9 checks)
+        run: python -m backend.app.kg.validate
+
+      # 文档是生成物：本体说明与 schema.yaml 不同步、审核台账条数对不上都会非零退出
+      - name: Docs in sync
+        run: |
+          python -m backend.tools.gen_ontology_doc --check
+          python -m backend.tools.gen_faq_review --check
+
+  frontend:
+    name: frontend · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
