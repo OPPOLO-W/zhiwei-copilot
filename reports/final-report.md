@@ -44,7 +44,7 @@ KG Exploration（图上游走取证）→ Inference with Knowledge Reconstructio
 | RefKG 原论文 | 本项目 | 原因 |
 | --- | --- | --- |
 | 多任务微调（multi-task tuning） | 不训练、不微调 | 课程作业无 GPU 预算；且售后场景要求结论可复现 |
-| LLM 驱动图上游走 | 默认确定性规划器；可选 LLM 驱动（`useLlm`）+ 9 个窄接口工具 | 默认关，保证评测可复现；LLM 路径逐节点失败即回退确定性等价实现 |
+| LLM 驱动图上游走 | 默认确定性规划器；可选 LLM 驱动（`useLlm`）+ 10 个窄接口工具 | 默认关，保证评测可复现；LLM 路径逐节点失败即回退确定性等价实现 |
 | LLM 生成答案 | 规则结论 + 模板组装 | 保证每条 claim 都能指向 evidenceId |
 
 **为什么不用 GraLan / 关系令牌那条路。** 关系令牌把三元组线性化成序列喂给模型，本质仍是生成式路径解释，
@@ -245,7 +245,7 @@ intake → plan → execute → (reflect → execute)* → finalize
 提前终止条件：规则层判定为「查询落空」（未知码、型号不适用、意图不明）时不再重试——
 这类问题重试多少次都是同一个结果。
 
-### 6.2 九个工具（8 个诊断用 + 1 个消融对照）
+### 6.2 十个工具（9 个诊断用 + 1 个消融对照）
 
 | 工具 | 用途 |
 | --- | --- |
@@ -258,6 +258,7 @@ intake → plan → execute → (reflect → execute)* → finalize
 | `search_similar_cases` | 同型号同症状 + 时间窗的相似案例 |
 | `check_compatibility` | 耗材/备件与型号兼容性 |
 | `get_document_span` | 取原文段落（定位到 docId + 页码） |
+| `search_documents` | 按关键词检索手册/FAQ 正文，返回带 docId 与页码的片段（P3 新增，用于跨文档取证） |
 
 ### 6.3 与 RefKG 的差异（必须写明）
 

@@ -125,7 +125,7 @@ Review 时的判断：作为知识图谱/规则项目是合格的，作为 Agent
 - 可行性分析与路线计划：本地维护，未随仓库发布（结论已并入本文 §3–§4 与各阶段报告）
 - 总报告：`reports/final-report.md`（§8.5 已标注「逐位相同」为历史口径）
 - 结果文件：`var/eval/agent_llm_20261118_*.json`（每次运行的逐题行 + 汇总）
-- 测试：`202 passed, 2 skipped`；回退点 `pre-p0`；分支 `p0/llm-attribution`
+- 测试：`200 passed, 2 skipped`（当次收集 202 项）；回退点 `pre-p0`；分支 `p0/llm-attribution`
 
 ```powershell
 $env:KG_BACKEND='memory'
