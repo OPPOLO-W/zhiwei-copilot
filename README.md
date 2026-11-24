@@ -1,22 +1,30 @@
 # 智维 Copilot · DEEBOT T 系列售后知识图谱与故障排查 Agent
 
+[![CI](https://github.com/OPPOLO-W/zhiwei-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/OPPOLO-W/zhiwei-copilot/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.13-3776AB)](pyproject.toml)
+[![React](https://img.shields.io/badge/React-18-61DAFB)](frontend/package.json)
+
 > 人工智能原理课程作业（场景 C：企业知识管理）。以「产品—客户—工单」知识图谱为底座，
 > 用**本体驱动的知识表示 + 可证明的规则推理 + RefKG-lite 式 Agent 编排**，回答真实售后问题，
 > 并给出可交互的推理路径可视化。
 
-- 设计文档：[`documents/场景C-企业知识管理KG-Agent开发文档.md`](documents/场景C-企业知识管理KG-Agent开发文档.md)
-- **项目全景导读：[`docs/project-guide.md`](docs/project-guide.md)**（先读这份：数据怎么来、图怎么建、问题怎么被回答，含 7 张流程图 + 项目结构导航）
-- **开发流程重演：[`docs/dev-walkthrough.md`](docs/dev-walkthrough.md)**（按开发文档 D1–D28 切 6 个阶段，配 `git tag` 可逐段回看）
-- 本体说明：[`docs/ontology.md`](docs/ontology.md)（由 `schema.yaml` 生成）
-- 抽取与数据账本：[`docs/extraction.md`](docs/extraction.md)
-- 实验与误差分析：[`docs/evaluation.md`](docs/evaluation.md)
-- 答辩演示脚本：[`docs/demo-script.md`](docs/demo-script.md)
-- **可靠性提升计划：[`docs/uplift-plan.md`](docs/uplift-plan.md)**（三阶段：题集与硬幻觉指标 → 受约束事实回传 → 带证据的复核；含通过标准与 git 回退点）
-- **难题集基线：[`reports/uplift-baseline.md`](reports/uplift-baseline.md)**（20 题定向抽样 × 4 系统 × 3 重复，含编造/悬空/越界/安全四项检测）
-- **阶段 B：[`reports/uplift-stage-b.md`](reports/uplift-stage-b.md)**（口语症状改白名单归类：答案准确率 0.60→0.90，首选方案 0.07→0.40，幻觉四项仍为 0）
-- 图谱规模：**432 实体 / 1028 关系**（课程要求 ≥60 / ≥120）
-- 推理规则：**24 条**声明式规则（课程要求 ≥20）
-- 评测集：**50 题**（单跳 10 / 两跳 11 / 多跳 13 / 歧义 5 / 型号范围 4 / 安全 4 / 超范围 3）
+![界面总览：左栏提问与结论、中栏证明子图、右栏证据与证明树、底部编排时间线](docs/images/ui-main.png)
+
+**一眼看数**：图谱 **432 实体 / 1028 关系**（课程要求 ≥60 / ≥120）· 声明式规则 **24 条**（≥20）·
+评测集 **50 题 × 3 次重复** · 测试 **200 通过 / 2 跳过** · 答案准确率 **0.980**（弱 RAG 基线 0.300）·
+难题集首选方案 **0/15 → 13/15**、四项硬幻觉全程 **0**。
+
+**文档导航**
+
+| 主题 | 入口 |
+| --- | --- |
+| 设计文档（需求、数据、验收） | [`documents/场景C-企业知识管理KG-Agent开发文档.md`](documents/场景C-企业知识管理KG-Agent开发文档.md) |
+| 本体（单一事实源） | [`docs/ontology.md`](docs/ontology.md)（由 `schema.yaml` 生成，CI 校验同步） |
+| 摄取 → 抽取流水线 | [`docs/pipeline.md`](docs/pipeline.md) · [`docs/extraction.md`](docs/extraction.md) |
+| 图谱构建与质量闸门 | [`docs/graph-build.md`](docs/graph-build.md) |
+| 实验设计、消融、误差分析 | [`docs/evaluation.md`](docs/evaluation.md) · [`reports/final-report.md`](reports/final-report.md) |
+| 可靠性提升（难题集 / 硬幻觉 / LLM 边界） | [`reports/uplift-summary.md`](reports/uplift-summary.md) · [`reports/uplift-baseline.md`](reports/uplift-baseline.md) · [`reports/uplift-stage-b.md`](reports/uplift-stage-b.md) |
+| 分阶段历史 | `git tag`：`w1a-ontology` → `w1b-ingest` → `w1c-graph` → `w2-rules` → `w3-agent` → `w4-delivery` → `v5-baseline-50q` → `v6-hard-eval` → `v7-llm-symptom` |
 
 ---
 
@@ -192,9 +200,13 @@ data/
 frontend/                   # React + Vite + Cytoscape.js 可视化
 docs/
   ontology.md               # 本体说明（生成物，含类/关系/实例数/CQ/质量闸门）
+  pipeline.md               # 摄取 → 抽取 → 构建 → 加载 的全链路说明
   extraction.md             # 抽取流水线与数据账本（真实/合成比例、对账结果）
+  graph-build.md            # 图谱构建：两阶段、证据四级、9 类质量闸门
   evaluation.md             # 实验设计、五组结果、消融、误差分析
-  demo-script.md            # 答辩演示脚本（每幕：操作 → 画面 → 话术 → 兜底）
+  images/                   # README 配图
+reports/                    # 实验报告（阶段报告 + 总报告 + 图表）
+.github/workflows/ci.yml    # CI：测试 / 图谱校验 / 文档同步 / 前端构建
 Makefile                    # make up/seed/eval/test/docs
 docker-compose.yml          # Neo4j + 后端 + 前端一键起
 ```
@@ -346,12 +358,16 @@ FAQ 29 条故障类，对齐 21 对——手册覆盖 83%，FAQ 覆盖 52%。
   规则库与触发统计、Agent 编排（子问题/覆盖度/工具调用/重试·反思）、对比模式差异；
 - **底**：intake→finalize 轨迹时间线，点击查看每步载荷。
 
+对照模式把规则链与 Agent 链逐项对齐（置信度、首选故障/根因/方案、子问题覆盖、工具调用）：
+
+![对照模式：规则链与 Agent 链逐项对齐](docs/images/ui-compare.png)
+
 ---
 
 ## 6. 测试
 
 ```bash
-python -m pytest backend/tests -q      # 143 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
+python -m pytest backend/tests          # 200 passed, 2 skipped（含 17 条 LLM、17 条幻觉/槽位用例）
 ```
 
 覆盖：本体规模与继承、图谱规模/证据完整性/无孤立点、规则白名单与静态校验、
@@ -366,6 +382,18 @@ API 契约与 SSE 回放、trace 落盘。
 python -m backend.tools.gen_ontology_doc --check   # docs/ontology.md 与 schema.yaml 不一致则非零退出
 python -m backend.tools.gen_faq_review --check     # 案例审核台账：58 条不漏、引用 ID 合法、理由齐全
 ```
+
+以上检查都进了 GitHub Actions（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)），
+push 到 `main`、提交 PR 或手动触发时运行：
+
+| 作业 | 内容 |
+| --- | --- |
+| `backend · Python 3.11 / 3.13` | `pytest`（内存后端）+ `kg.validate` 九类质量闸门 + 两条文档同步校验 |
+| `frontend · build` | `npm ci` + `vite build` |
+
+CI 不需要 Neo4j、不需要任何 API key：图存储固定为 `KG_BACKEND=memory`，
+数据来自仓库内的 `data/curated/*.jsonl`。2 条跳过用例与语料有关（单机型、无特定形态案例），
+与运行环境无关。
 
 ---
 
